@@ -85,8 +85,8 @@ def grade():
         essay,
         return_tensors="pt",
         truncation=True,
-        max_length=4096,
-        padding=True,
+        max_length=512,
+        padding="max_length",
     )
 
     global_attention_mask = torch.zeros_like(inputs["input_ids"])
