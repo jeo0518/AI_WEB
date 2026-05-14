@@ -1,0 +1,9 @@
+flask
+flask-cors
+torch
+transformers
+safetensors
+sentencepiece
+openai
+python-dotenv
+gunicorn

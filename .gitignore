@@ -1,0 +1,10 @@
+.env
+__pycache__/
+*.pyc
+.DS_Store
+aes_model/optimizer.pt
+aes_model/rng_state.pth
+aes_model/scaler.pt
+aes_model/scheduler.pt
+aes_model/trainer_state.json
+aes_model/training_args.bin

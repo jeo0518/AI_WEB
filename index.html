@@ -1,0 +1,327 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>AI Essay Grader</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Segoe UI', system-ui, sans-serif;
+      background: #f0f2f5;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 40px 20px;
+      color: #1a1a2e;
+    }
+
+    header {
+      text-align: center;
+      margin-bottom: 32px;
+    }
+    header h1 {
+      font-size: 2rem;
+      font-weight: 700;
+      color: #1a1a2e;
+    }
+    header p {
+      margin-top: 6px;
+      color: #555;
+      font-size: 0.95rem;
+    }
+
+    .card {
+      background: #fff;
+      border-radius: 16px;
+      box-shadow: 0 4px 24px rgba(0,0,0,0.08);
+      padding: 32px;
+      width: 100%;
+      max-width: 760px;
+    }
+
+    label {
+      display: block;
+      font-weight: 600;
+      margin-bottom: 8px;
+      font-size: 0.95rem;
+    }
+
+    textarea {
+      width: 100%;
+      height: 280px;
+      border: 1.5px solid #d0d5dd;
+      border-radius: 10px;
+      padding: 14px;
+      font-size: 0.95rem;
+      line-height: 1.6;
+      resize: vertical;
+      outline: none;
+      transition: border-color 0.2s;
+      font-family: inherit;
+      color: #1a1a2e;
+    }
+    textarea:focus { border-color: #4f46e5; }
+
+    .meta {
+      display: flex;
+      justify-content: flex-end;
+      margin-top: 6px;
+      font-size: 0.82rem;
+      color: #888;
+    }
+
+    button {
+      margin-top: 20px;
+      width: 100%;
+      padding: 14px;
+      background: #4f46e5;
+      color: #fff;
+      font-size: 1rem;
+      font-weight: 600;
+      border: none;
+      border-radius: 10px;
+      cursor: pointer;
+      transition: background 0.2s, opacity 0.2s;
+    }
+    button:hover:not(:disabled) { background: #4338ca; }
+    button:disabled { opacity: 0.6; cursor: not-allowed; }
+
+    /* Result panel */
+    #result {
+      display: none;
+      margin-top: 28px;
+      text-align: center;
+    }
+
+    .score-label {
+      font-size: 0.85rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: #888;
+      margin-bottom: 8px;
+    }
+
+    .score-number {
+      font-size: 5rem;
+      font-weight: 800;
+      line-height: 1;
+    }
+
+    .score-bar-wrap {
+      margin: 20px auto 0;
+      max-width: 400px;
+    }
+    .score-bar-track {
+      background: #e5e7eb;
+      border-radius: 999px;
+      height: 10px;
+      overflow: hidden;
+    }
+    .score-bar-fill {
+      height: 100%;
+      border-radius: 999px;
+      transition: width 0.6s ease;
+    }
+    .score-ticks {
+      display: flex;
+      justify-content: space-between;
+      margin-top: 6px;
+      font-size: 0.75rem;
+      color: #aaa;
+      padding: 0 2px;
+    }
+
+    .score-band {
+      margin-top: 14px;
+      display: inline-block;
+      padding: 4px 14px;
+      border-radius: 999px;
+      font-size: 0.85rem;
+      font-weight: 600;
+    }
+
+    /* Rationale */
+    #rationale-wrap {
+      display: none;
+      margin-top: 28px;
+      text-align: left;
+      border-top: 1.5px solid #e5e7eb;
+      padding-top: 24px;
+    }
+    #rationale-wrap h3 {
+      font-size: 0.85rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: #888;
+      margin-bottom: 12px;
+    }
+    #rationale-text {
+      font-size: 0.95rem;
+      line-height: 1.75;
+      color: #374151;
+      white-space: pre-wrap;
+    }
+
+    /* Error */
+    #error {
+      display: none;
+      margin-top: 16px;
+      padding: 12px 16px;
+      background: #fef2f2;
+      border: 1px solid #fecaca;
+      border-radius: 8px;
+      color: #b91c1c;
+      font-size: 0.9rem;
+    }
+
+    /* Loading spinner */
+    .spinner {
+      display: inline-block;
+      width: 18px;
+      height: 18px;
+      border: 2.5px solid rgba(255,255,255,0.4);
+      border-top-color: #fff;
+      border-radius: 50%;
+      animation: spin 0.7s linear infinite;
+      vertical-align: middle;
+      margin-right: 8px;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>AI Essay Grader</h1>
+    <p>Paste your essay below and get an AI-generated score from 1 to 6.</p>
+  </header>
+
+  <div class="card">
+    <label for="essay">Your Essay</label>
+    <textarea id="essay" placeholder="Paste or type your essay here..."></textarea>
+    <div class="meta">
+      <span id="word-count">0 words</span>
+    </div>
+
+    <button id="grade-btn" onclick="gradeEssay()">Grade Essay</button>
+
+    <div id="error"></div>
+
+    <div id="result">
+      <div class="score-label">Score</div>
+      <div class="score-number" id="score-display">—</div>
+      <div class="score-bar-wrap">
+        <div class="score-bar-track">
+          <div class="score-bar-fill" id="score-bar"></div>
+        </div>
+        <div class="score-ticks">
+          <span>1</span><span>2</span><span>3</span><span>4</span><span>5</span><span>6</span>
+        </div>
+      </div>
+      <span class="score-band" id="score-band"></span>
+    </div>
+
+    <div id="rationale-wrap">
+      <h3>Rationale</h3>
+      <p id="rationale-text"></p>
+    </div>
+  </div>
+
+  <script>
+    const essay = document.getElementById('essay');
+    const wordCount = document.getElementById('word-count');
+
+    essay.addEventListener('input', () => {
+      const words = essay.value.trim() === '' ? 0 : essay.value.trim().split(/\s+/).length;
+      wordCount.textContent = words + ' word' + (words !== 1 ? 's' : '');
+    });
+
+    const BANDS = [
+      { max: 1.5, label: 'Inadequate',  color: '#ef4444', bar: '#ef4444' },
+      { max: 2.5, label: 'Developing',  color: '#f97316', bar: '#f97316' },
+      { max: 3.5, label: 'Approaching', color: '#eab308', bar: '#eab308' },
+      { max: 4.5, label: 'Proficient',  color: '#22c55e', bar: '#22c55e' },
+      { max: 5.5, label: 'Advanced',    color: '#3b82f6', bar: '#3b82f6' },
+      { max: 6.0, label: 'Exemplary',   color: '#8b5cf6', bar: '#8b5cf6' },
+    ];
+
+    function getBand(score) {
+      return BANDS.find(b => score <= b.max) || BANDS[BANDS.length - 1];
+    }
+
+    async function gradeEssay() {
+      const text = essay.value.trim();
+      const btn = document.getElementById('grade-btn');
+      const errorEl = document.getElementById('error');
+      const resultEl = document.getElementById('result');
+
+      errorEl.style.display = 'none';
+      resultEl.style.display = 'none';
+
+      if (!text) {
+        showError('Please enter an essay before grading.');
+        return;
+      }
+
+      btn.disabled = true;
+      btn.innerHTML = '<span class="spinner"></span>Scoring essay…';
+
+      try {
+        const res = await fetch('/grade', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ essay: text }),
+        });
+
+        const data = await res.json();
+
+        if (!res.ok) {
+          showError(data.error || 'Something went wrong.');
+          return;
+        }
+
+        showResult(data.score, data.rationale);
+      } catch (e) {
+        showError('Could not reach the server. Make sure app.py is running.');
+      } finally {
+        btn.disabled = false;
+        btn.textContent = 'Grade Essay';
+      }
+    }
+
+    function showError(msg) {
+      const el = document.getElementById('error');
+      el.textContent = msg;
+      el.style.display = 'block';
+    }
+
+    function showResult(score, rationale) {
+      const band = getBand(score);
+      const pct = ((score - 1) / 5) * 100;
+
+      document.getElementById('score-display').textContent = score.toFixed(1);
+      document.getElementById('score-display').style.color = band.color;
+
+      const bar = document.getElementById('score-bar');
+      bar.style.width = pct + '%';
+      bar.style.background = band.bar;
+
+      const bandEl = document.getElementById('score-band');
+      bandEl.textContent = band.label;
+      bandEl.style.background = band.color + '20';
+      bandEl.style.color = band.color;
+
+      document.getElementById('result').style.display = 'block';
+
+      if (rationale) {
+        document.getElementById('rationale-text').textContent = rationale;
+        document.getElementById('rationale-wrap').style.display = 'block';
+      }
+    }
+  </script>
+</body>
+</html>
