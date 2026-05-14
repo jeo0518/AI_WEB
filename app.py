@@ -11,14 +11,15 @@ load_dotenv()
 app = Flask(__name__, static_folder=".", static_url_path="")
 CORS(app)
 
-MODEL_DIR = os.path.join(os.path.dirname(__file__), "aes_model")
+HF_REPO = os.environ.get("HF_MODEL_REPO")
+HF_TOKEN = os.environ.get("HF_TOKEN")
 DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 
 print("Loading tokenizer (downloads once from HuggingFace)...")
 tokenizer = AutoTokenizer.from_pretrained("allenai/longformer-base-4096")
 
 print(f"Loading model on {DEVICE}...")
-model = LongformerForSequenceClassification.from_pretrained(MODEL_DIR)
+model = LongformerForSequenceClassification.from_pretrained(HF_REPO, token=HF_TOKEN)
 model.eval()
 model.to(DEVICE)
 
