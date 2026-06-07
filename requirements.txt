@@ -1,5 +1,7 @@
 flask
 flask-cors
+pypdf
+python-docx
 torch
 transformers
 safetensors

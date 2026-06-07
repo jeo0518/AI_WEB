@@ -1,7 +1,12 @@
+import io
 import os
+import re
+import unicodedata
 import torch
+from docx import Document
 from flask import Flask, request, jsonify
 from flask_cors import CORS
+from pypdf import PdfReader
 from transformers import AutoTokenizer, LongformerForSequenceClassification
 from openai import OpenAI
 from dotenv import load_dotenv
@@ -9,6 +14,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 app = Flask(__name__, static_folder=".", static_url_path="")
+app.config["MAX_CONTENT_LENGTH"] = 5 * 1024 * 1024  # 5 MB upload limit
 CORS(app)
 
 HF_REPO = os.environ.get("HF_MODEL_REPO")
@@ -66,9 +72,52 @@ def generate_rationale(essay: str, score: float) -> str:
     return response.choices[0].message.content.strip()
 
 
+def extract_text_from_upload(file_storage):
+    filename = file_storage.filename or ""
+    ext = filename.rsplit(".", 1)[-1].lower() if "." in filename else ""
+    data = file_storage.read()
+
+    if ext == "txt":
+        return data.decode("utf-8", errors="ignore")
+
+    if ext == "pdf":
+        reader = PdfReader(io.BytesIO(data))
+        raw_text = "\n".join(page.extract_text() or "" for page in reader.pages)
+        # pypdf often emits ligatures (ﬁ, ﬂ) and spurious whitespace/line breaks
+        # for PDFs that position glyphs individually (e.g. Google Docs exports).
+        normalized = unicodedata.normalize("NFKC", raw_text)
+        return re.sub(r"\s+", " ", normalized)
+
+    if ext == "docx":
+        doc = Document(io.BytesIO(data))
+        return "\n".join(p.text for p in doc.paragraphs)
+
+    raise ValueError("Unsupported file type. Please upload a .txt, .pdf, or .docx file.")
+
+
 @app.route("/")
 def index():
     return app.send_static_file("index.html")
+
+
+@app.route("/extract", methods=["POST"])
+def extract():
+    file = request.files.get("file")
+    if not file or not file.filename:
+        return jsonify({"error": "No file provided."}), 400
+
+    try:
+        text = extract_text_from_upload(file)
+    except ValueError as e:
+        return jsonify({"error": str(e)}), 400
+    except Exception:
+        return jsonify({"error": "Could not read that file. Make sure it isn't corrupted or password-protected."}), 400
+
+    text = text.strip()
+    if not text:
+        return jsonify({"error": "No text could be extracted from that file."}), 400
+
+    return jsonify({"text": text})
 
 
 @app.route("/grade", methods=["POST"])

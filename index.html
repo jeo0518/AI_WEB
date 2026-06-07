@@ -67,8 +67,31 @@
 
     .meta {
       display: flex;
-      justify-content: flex-end;
+      justify-content: space-between;
+      align-items: center;
       margin-top: 6px;
+      font-size: 0.82rem;
+      color: #888;
+    }
+
+    .upload-label {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      margin: 0;
+      font-weight: 600;
+      font-size: 0.82rem;
+      color: #4f46e5;
+      cursor: pointer;
+      transition: color 0.2s;
+    }
+    .upload-label:hover { color: #4338ca; text-decoration: underline; }
+    .upload-label.disabled {
+      color: #aaa;
+      cursor: not-allowed;
+      pointer-events: none;
+    }
+    #file-name {
       font-size: 0.82rem;
       color: #888;
     }
@@ -204,6 +227,11 @@
     <label for="essay">Your Essay</label>
     <textarea id="essay" placeholder="Paste or type your essay here..."></textarea>
     <div class="meta">
+      <span>
+        <label for="file-input" class="upload-label" id="upload-label">Upload a file (.txt, .pdf, .docx)</label>
+        <input type="file" id="file-input" accept=".txt,.pdf,.docx" hidden />
+        <span id="file-name"></span>
+      </span>
       <span id="word-count">0 words</span>
     </div>
 
@@ -238,6 +266,47 @@
     essay.addEventListener('input', () => {
       const words = essay.value.trim() === '' ? 0 : essay.value.trim().split(/\s+/).length;
       wordCount.textContent = words + ' word' + (words !== 1 ? 's' : '');
+    });
+
+    const fileInput = document.getElementById('file-input');
+    const uploadLabel = document.getElementById('upload-label');
+    const fileName = document.getElementById('file-name');
+
+    fileInput.addEventListener('change', async () => {
+      const file = fileInput.files[0];
+      if (!file) return;
+
+      const errorEl = document.getElementById('error');
+      errorEl.style.display = 'none';
+
+      fileName.textContent = file.name;
+      uploadLabel.classList.add('disabled');
+      const previousLabel = uploadLabel.textContent;
+      uploadLabel.textContent = 'Reading file…';
+
+      const formData = new FormData();
+      formData.append('file', file);
+
+      try {
+        const res = await fetch('/extract', { method: 'POST', body: formData });
+        const data = await res.json();
+
+        if (!res.ok) {
+          showError(data.error || 'Could not read that file.');
+          fileName.textContent = '';
+          return;
+        }
+
+        essay.value = data.text;
+        essay.dispatchEvent(new Event('input'));
+      } catch (e) {
+        showError('Could not reach the server while uploading the file.');
+        fileName.textContent = '';
+      } finally {
+        uploadLabel.classList.remove('disabled');
+        uploadLabel.textContent = previousLabel;
+        fileInput.value = '';
+      }
     });
 
     const BANDS = [
