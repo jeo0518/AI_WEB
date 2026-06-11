@@ -109,7 +109,7 @@
       cursor: pointer;
       transition: background 0.2s, opacity 0.2s;
     }
-    button:hover:not(:disabled) { background: #4338ca; }
+    button:hover:not(:disabled):not(.link-btn) { background: #4338ca; }
     button:disabled { opacity: 0.6; cursor: not-allowed; }
 
     /* Result panel */
@@ -215,15 +215,155 @@
       margin-right: 8px;
     }
     @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* Auth bar */
+    .auth-bar {
+      width: 100%;
+      max-width: 760px;
+      display: flex;
+      justify-content: flex-end;
+      align-items: center;
+      gap: 16px;
+      margin-bottom: 8px;
+      font-size: 0.85rem;
+      color: #555;
+    }
+    .link-btn {
+      all: unset;
+      cursor: pointer;
+      color: #4f46e5;
+      font-weight: 600;
+      font-size: 0.85rem;
+    }
+    .link-btn:hover { text-decoration: underline; color: #4338ca; }
+
+    /* Modal */
+    .modal-overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(26, 26, 46, 0.45);
+      align-items: center;
+      justify-content: center;
+      z-index: 100;
+      padding: 20px;
+    }
+    .modal-overlay.open { display: flex; }
+    .modal {
+      background: #fff;
+      border-radius: 16px;
+      box-shadow: 0 12px 48px rgba(0,0,0,0.22);
+      padding: 32px;
+      width: 100%;
+      max-width: 380px;
+      position: relative;
+    }
+    .modal h2 { font-size: 1.3rem; margin-bottom: 20px; }
+    .modal-close {
+      all: unset;
+      position: absolute;
+      top: 18px;
+      right: 18px;
+      cursor: pointer;
+      font-size: 1.3rem;
+      line-height: 1;
+      color: #888;
+    }
+    .modal-close:hover { color: #1a1a2e; }
+    .field { margin-bottom: 16px; }
+    .field input {
+      width: 100%;
+      border: 1.5px solid #d0d5dd;
+      border-radius: 10px;
+      padding: 12px 14px;
+      font-size: 0.95rem;
+      font-family: inherit;
+      outline: none;
+      color: #1a1a2e;
+      transition: border-color 0.2s;
+    }
+    .field input:focus { border-color: #4f46e5; }
+    .form-error {
+      display: none;
+      margin-top: 4px;
+      margin-bottom: 12px;
+      padding: 10px 14px;
+      background: #fef2f2;
+      border: 1px solid #fecaca;
+      border-radius: 8px;
+      color: #b91c1c;
+      font-size: 0.85rem;
+    }
+    .modal-switch {
+      margin-top: 16px;
+      font-size: 0.85rem;
+      color: #555;
+      text-align: center;
+    }
+
+    /* History panel */
+    #history-panel { display: none; }
+    .history-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 20px;
+    }
+    .history-header h2 { font-size: 1.2rem; }
+    #history-empty { color: #888; font-size: 0.9rem; text-align: center; padding: 20px 0; }
+    .history-item {
+      border: 1.5px solid #e5e7eb;
+      border-radius: 12px;
+      padding: 18px;
+      margin-bottom: 14px;
+    }
+    .history-item-top {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 10px;
+    }
+    .history-score-badge {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-width: 36px;
+      height: 36px;
+      border-radius: 999px;
+      font-weight: 700;
+      font-size: 1.05rem;
+    }
+    .history-date { font-size: 0.8rem; color: #888; }
+    .history-excerpt { font-size: 0.9rem; color: #374151; margin-bottom: 10px; line-height: 1.5; }
+    .history-rationale {
+      font-size: 0.88rem;
+      line-height: 1.65;
+      color: #555;
+      white-space: pre-wrap;
+      border-top: 1px solid #f0f0f0;
+      padding-top: 10px;
+    }
   </style>
 </head>
 <body>
+  <div class="auth-bar">
+    <span id="auth-status">Not signed in</span>
+    <span id="auth-actions-out">
+      <button class="link-btn" id="login-btn" type="button">Log in</button>
+      <button class="link-btn" id="signup-btn" type="button">Sign up</button>
+    </span>
+    <span id="auth-actions-in" style="display:none">
+      <button class="link-btn" id="history-btn" type="button">History</button>
+      <button class="link-btn" id="logout-btn" type="button">Log out</button>
+    </span>
+  </div>
+
   <header>
     <h1>AI Essay Grader</h1>
     <p>Paste your essay below and get an AI-generated score from 1 to 6.</p>
   </header>
 
-  <div class="card">
+  <div class="card" id="grader-card">
     <label for="essay">Your Essay</label>
     <textarea id="essay" placeholder="Paste or type your essay here..."></textarea>
     <div class="meta">
@@ -256,6 +396,36 @@
     <div id="rationale-wrap">
       <h3>Rationale</h3>
       <p id="rationale-text"></p>
+    </div>
+  </div>
+
+  <div class="card" id="history-panel">
+    <div class="history-header">
+      <h2>Your History</h2>
+      <button class="link-btn" id="back-to-grading-btn" type="button">&larr; Back to grading</button>
+    </div>
+    <div id="history-list"></div>
+    <p id="history-empty" style="display:none">You haven't graded any essays yet.</p>
+  </div>
+
+  <div class="modal-overlay" id="auth-overlay">
+    <div class="modal">
+      <button class="modal-close" id="auth-modal-close" type="button" aria-label="Close">&times;</button>
+      <h2 id="auth-modal-title">Log in</h2>
+      <div class="field">
+        <label for="auth-email">Email</label>
+        <input type="email" id="auth-email" autocomplete="email" />
+      </div>
+      <div class="field">
+        <label for="auth-password">Password</label>
+        <input type="password" id="auth-password" autocomplete="current-password" />
+      </div>
+      <div class="form-error" id="auth-error"></div>
+      <button id="auth-submit-btn" type="button">Log in</button>
+      <p class="modal-switch">
+        <span id="auth-switch-text">Don't have an account?</span>
+        <button class="link-btn" id="auth-switch-btn" type="button">Sign up</button>
+      </p>
     </div>
   </div>
 
@@ -391,6 +561,208 @@
         document.getElementById('rationale-wrap').style.display = 'block';
       }
     }
+
+    // ----- Auth & history -----
+
+    let currentUserEmail = null;
+    let authMode = 'login';
+
+    const graderCard = document.getElementById('grader-card');
+    const historyPanel = document.getElementById('history-panel');
+
+    const authStatus = document.getElementById('auth-status');
+    const authActionsOut = document.getElementById('auth-actions-out');
+    const authActionsIn = document.getElementById('auth-actions-in');
+    const loginBtn = document.getElementById('login-btn');
+    const signupBtn = document.getElementById('signup-btn');
+    const historyBtn = document.getElementById('history-btn');
+    const logoutBtn = document.getElementById('logout-btn');
+    const backToGradingBtn = document.getElementById('back-to-grading-btn');
+
+    const authOverlay = document.getElementById('auth-overlay');
+    const authModalTitle = document.getElementById('auth-modal-title');
+    const authModalClose = document.getElementById('auth-modal-close');
+    const authEmailInput = document.getElementById('auth-email');
+    const authPasswordInput = document.getElementById('auth-password');
+    const authError = document.getElementById('auth-error');
+    const authSubmitBtn = document.getElementById('auth-submit-btn');
+    const authSwitchText = document.getElementById('auth-switch-text');
+    const authSwitchBtn = document.getElementById('auth-switch-btn');
+
+    function updateAuthUI() {
+      if (currentUserEmail) {
+        authStatus.textContent = 'Signed in as ' + currentUserEmail;
+        authActionsOut.style.display = 'none';
+        authActionsIn.style.display = '';
+      } else {
+        authStatus.textContent = 'Not signed in';
+        authActionsOut.style.display = '';
+        authActionsIn.style.display = 'none';
+      }
+    }
+
+    async function checkAuth() {
+      try {
+        const res = await fetch('/api/me');
+        const data = await res.json();
+        currentUserEmail = data.email;
+      } catch (e) {
+        currentUserEmail = null;
+      }
+      updateAuthUI();
+    }
+
+    function showGrader() {
+      historyPanel.style.display = 'none';
+      graderCard.style.display = '';
+    }
+
+    async function showHistory() {
+      graderCard.style.display = 'none';
+      historyPanel.style.display = 'block';
+      await loadHistory();
+    }
+
+    function escapeHtml(str) {
+      const div = document.createElement('div');
+      div.textContent = str;
+      return div.innerHTML;
+    }
+
+    function renderHistoryItem(entry) {
+      const band = getBand(entry.score);
+      const date = new Date(entry.created_at).toLocaleString(undefined, {
+        year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit',
+      });
+      return (
+        '<div class="history-item">' +
+          '<div class="history-item-top">' +
+            '<span class="history-score-badge" style="background:' + band.color + '20;color:' + band.color + '">' + entry.score + '</span>' +
+            '<span class="history-date">' + escapeHtml(date) + '</span>' +
+          '</div>' +
+          '<p class="history-excerpt">' + escapeHtml(entry.essay_excerpt) + '</p>' +
+          '<p class="history-rationale">' + escapeHtml(entry.rationale) + '</p>' +
+        '</div>'
+      );
+    }
+
+    async function loadHistory() {
+      const list = document.getElementById('history-list');
+      const empty = document.getElementById('history-empty');
+      empty.style.display = 'none';
+      list.innerHTML = '<p style="text-align:center;color:#888;padding:20px 0;">Loading…</p>';
+
+      try {
+        const res = await fetch('/api/history');
+        if (!res.ok) {
+          list.innerHTML = '';
+          empty.textContent = 'Could not load your history.';
+          empty.style.display = 'block';
+          return;
+        }
+
+        const entries = await res.json();
+        if (entries.length === 0) {
+          list.innerHTML = '';
+          empty.textContent = "You haven't graded any essays yet.";
+          empty.style.display = 'block';
+          return;
+        }
+
+        list.innerHTML = entries.map(renderHistoryItem).join('');
+      } catch (e) {
+        list.innerHTML = '';
+        empty.textContent = 'Could not reach the server.';
+        empty.style.display = 'block';
+      }
+    }
+
+    function openAuthModal(mode) {
+      authMode = mode;
+      authError.style.display = 'none';
+      authEmailInput.value = '';
+      authPasswordInput.value = '';
+
+      if (mode === 'signup') {
+        authModalTitle.textContent = 'Sign up';
+        authSubmitBtn.textContent = 'Sign up';
+        authSwitchText.textContent = "Already have an account?";
+        authSwitchBtn.textContent = 'Log in';
+      } else {
+        authModalTitle.textContent = 'Log in';
+        authSubmitBtn.textContent = 'Log in';
+        authSwitchText.textContent = "Don't have an account?";
+        authSwitchBtn.textContent = 'Sign up';
+      }
+
+      authOverlay.classList.add('open');
+      authEmailInput.focus();
+    }
+
+    function closeAuthModal() {
+      authOverlay.classList.remove('open');
+    }
+
+    async function submitAuth() {
+      const email = authEmailInput.value.trim();
+      const password = authPasswordInput.value;
+
+      authError.style.display = 'none';
+      if (!email || !password) {
+        authError.textContent = 'Please fill in both fields.';
+        authError.style.display = 'block';
+        return;
+      }
+
+      const endpoint = authMode === 'signup' ? '/api/signup' : '/api/login';
+      authSubmitBtn.disabled = true;
+
+      try {
+        const res = await fetch(endpoint, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email, password }),
+        });
+        const data = await res.json();
+
+        if (!res.ok) {
+          authError.textContent = data.error || 'Something went wrong.';
+          authError.style.display = 'block';
+          return;
+        }
+
+        currentUserEmail = data.email;
+        updateAuthUI();
+        closeAuthModal();
+      } catch (e) {
+        authError.textContent = 'Could not reach the server.';
+        authError.style.display = 'block';
+      } finally {
+        authSubmitBtn.disabled = false;
+      }
+    }
+
+    async function logout() {
+      try {
+        await fetch('/api/logout', { method: 'POST' });
+      } catch (e) {}
+      currentUserEmail = null;
+      updateAuthUI();
+      showGrader();
+    }
+
+    loginBtn.addEventListener('click', () => openAuthModal('login'));
+    signupBtn.addEventListener('click', () => openAuthModal('signup'));
+    authSwitchBtn.addEventListener('click', () => openAuthModal(authMode === 'login' ? 'signup' : 'login'));
+    authModalClose.addEventListener('click', closeAuthModal);
+    authOverlay.addEventListener('click', (e) => { if (e.target === authOverlay) closeAuthModal(); });
+    authSubmitBtn.addEventListener('click', submitAuth);
+    authPasswordInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') submitAuth(); });
+    historyBtn.addEventListener('click', showHistory);
+    logoutBtn.addEventListener('click', logout);
+    backToGradingBtn.addEventListener('click', showGrader);
+
+    checkAuth();
   </script>
 </body>
 </html>

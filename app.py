@@ -2,20 +2,67 @@ import io
 import os
 import re
 import unicodedata
+from datetime import datetime, timezone
+
 import torch
 from docx import Document
 from flask import Flask, request, jsonify
 from flask_cors import CORS
+from flask_login import (
+    LoginManager,
+    UserMixin,
+    current_user,
+    login_required,
+    login_user,
+    logout_user,
+)
+from flask_sqlalchemy import SQLAlchemy
 from pypdf import PdfReader
 from transformers import AutoTokenizer, LongformerForSequenceClassification
 from openai import OpenAI
+from werkzeug.security import check_password_hash, generate_password_hash
 from dotenv import load_dotenv
 
 load_dotenv()
 
 app = Flask(__name__, static_folder=".", static_url_path="")
 app.config["MAX_CONTENT_LENGTH"] = 5 * 1024 * 1024  # 5 MB upload limit
+app.secret_key = os.environ["SECRET_KEY"]
 CORS(app)
+
+# Railway/Heroku-style URLs use the legacy "postgres://" scheme; SQLAlchemy 2 requires "postgresql://"
+database_url = os.environ["DATABASE_URL"].replace("postgres://", "postgresql://", 1)
+app.config["SQLALCHEMY_DATABASE_URI"] = database_url
+app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
+
+db = SQLAlchemy(app)
+login_manager = LoginManager(app)
+
+
+class User(db.Model, UserMixin):
+    id = db.Column(db.Integer, primary_key=True)
+    email = db.Column(db.String(255), unique=True, nullable=False, index=True)
+    password_hash = db.Column(db.String(255), nullable=False)
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
+
+
+class SavedFeedback(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=False, index=True)
+    essay_excerpt = db.Column(db.String(400), nullable=False)
+    score = db.Column(db.Integer, nullable=False)
+    raw_score = db.Column(db.Float, nullable=False)
+    rationale = db.Column(db.Text, nullable=False)
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc), index=True)
+
+
+@login_manager.user_loader
+def load_user(user_id):
+    return db.session.get(User, int(user_id))
+
+
+with app.app_context():
+    db.create_all()
 
 HF_REPO = os.environ.get("HF_MODEL_REPO")
 HF_TOKEN = os.environ.get("HF_TOKEN")
@@ -100,6 +147,79 @@ def index():
     return app.send_static_file("index.html")
 
 
+EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
+
+
+@app.route("/api/signup", methods=["POST"])
+def signup():
+    data = request.get_json(silent=True) or {}
+    email = data.get("email", "").strip().lower()
+    password = data.get("password", "")
+
+    if not EMAIL_RE.match(email):
+        return jsonify({"error": "Please enter a valid email address."}), 400
+    if len(password) < 8:
+        return jsonify({"error": "Password must be at least 8 characters."}), 400
+    if User.query.filter_by(email=email).first():
+        return jsonify({"error": "An account with that email already exists."}), 409
+
+    user = User(email=email, password_hash=generate_password_hash(password))
+    db.session.add(user)
+    db.session.commit()
+
+    login_user(user)
+    return jsonify({"email": user.email}), 201
+
+
+@app.route("/api/login", methods=["POST"])
+def login():
+    data = request.get_json(silent=True) or {}
+    email = data.get("email", "").strip().lower()
+    password = data.get("password", "")
+
+    user = User.query.filter_by(email=email).first()
+    if not user or not check_password_hash(user.password_hash, password):
+        return jsonify({"error": "Invalid email or password."}), 401
+
+    login_user(user)
+    return jsonify({"email": user.email})
+
+
+@app.route("/api/logout", methods=["POST"])
+@login_required
+def logout():
+    logout_user()
+    return jsonify({"ok": True})
+
+
+@app.route("/api/me")
+def me():
+    if current_user.is_authenticated:
+        return jsonify({"email": current_user.email})
+    return jsonify({"email": None})
+
+
+@app.route("/api/history")
+@login_required
+def history():
+    entries = (
+        SavedFeedback.query.filter_by(user_id=current_user.id)
+        .order_by(SavedFeedback.created_at.desc())
+        .all()
+    )
+    return jsonify([
+        {
+            "id": entry.id,
+            "essay_excerpt": entry.essay_excerpt,
+            "score": entry.score,
+            "raw": entry.raw_score,
+            "rationale": entry.rationale,
+            "created_at": entry.created_at.isoformat(),
+        }
+        for entry in entries
+    ])
+
+
 @app.route("/extract", methods=["POST"])
 def extract():
     file = request.files.get("file")
@@ -151,8 +271,20 @@ def grade():
     score_rounded = round(score)
 
     rationale = generate_rationale(essay, score_rounded)
+    raw_score = round(score, 3)
 
-    return jsonify({"score": score_rounded, "raw": round(score, 3), "rationale": rationale})
+    if current_user.is_authenticated:
+        excerpt = essay[:200] + ("…" if len(essay) > 200 else "")
+        db.session.add(SavedFeedback(
+            user_id=current_user.id,
+            essay_excerpt=excerpt,
+            score=score_rounded,
+            raw_score=raw_score,
+            rationale=rationale,
+        ))
+        db.session.commit()
+
+    return jsonify({"score": score_rounded, "raw": raw_score, "rationale": rationale})
 
 
 if __name__ == "__main__":
