@@ -1,4 +1,5 @@
 import io
+import json
 import os
 import re
 import unicodedata
@@ -53,6 +54,7 @@ class SavedFeedback(db.Model):
     score = db.Column(db.Integer, nullable=False)
     raw_score = db.Column(db.Float, nullable=False)
     rationale = db.Column(db.Text, nullable=False)
+    rubric_json = db.Column(db.Text, nullable=True)
     created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc), index=True)
 
 
@@ -63,6 +65,11 @@ def load_user(user_id):
 
 with app.app_context():
     db.create_all()
+    # Lightweight migration for the rubric_json column added after the
+    # original table was created in production.
+    with db.engine.connect() as conn:
+        conn.execute(db.text("ALTER TABLE saved_feedback ADD COLUMN IF NOT EXISTS rubric_json TEXT"))
+        conn.commit()
 
 HF_REPO = os.environ.get("HF_MODEL_REPO")
 HF_TOKEN = os.environ.get("HF_TOKEN")
@@ -96,27 +103,64 @@ def score_label(score):
     return "Exemplary"
 
 
-def generate_rationale(essay: str, score: float) -> str:
+RUBRIC_CATEGORIES = [
+    "Ideas & Content",
+    "Organization",
+    "Voice & Style",
+    "Sentence Fluency",
+    "Conventions",
+]
+
+
+def generate_feedback(essay: str, score: float) -> dict:
     band = score_label(score)
+    categories = ", ".join(RUBRIC_CATEGORIES)
     prompt = (
         f"An AI essay grading model scored the following essay {score}/6 ({band}).\n\n"
         f"Essay:\n{essay}\n\n"
-        "Give a concise grading rationale in exactly 3 short paragraphs:\n"
-        "1. Overall assessment and score justification\n"
-        "2. Specific strengths (quote or reference the essay)\n"
-        "3. Specific areas for improvement\n\n"
-        "Be direct and constructive. Do not use headers or bullet points."
+        "Respond with a JSON object containing exactly two keys:\n\n"
+        '"rationale": a concise grading rationale in exactly 3 short paragraphs '
+        "(1. overall assessment and score justification, 2. specific strengths "
+        "with reference to the essay, 3. specific areas for improvement). "
+        "Be direct and constructive. Do not use headers or bullet points.\n\n"
+        '"rubric": an array with exactly one object for each of these categories, '
+        f"in this order: {categories}. Each object must have keys "
+        '"category" (the category name), "score" (an integer from 1 to 6 '
+        "rating the essay on that category), and \"feedback\" (one short "
+        "sentence explaining the score for that category)."
     )
     response = openai_client.chat.completions.create(
         model="gpt-4o-mini",
         messages=[
-            {"role": "system", "content": "You are an expert essay grader providing clear, specific feedback."},
+            {"role": "system", "content": "You are an expert essay grader providing clear, specific feedback. Always respond with valid JSON."},
             {"role": "user", "content": prompt},
         ],
-        max_tokens=400,
+        max_tokens=900,
         temperature=0.4,
+        response_format={"type": "json_object"},
     )
-    return response.choices[0].message.content.strip()
+    content = response.choices[0].message.content.strip()
+
+    try:
+        parsed = json.loads(content)
+        rationale = parsed["rationale"].strip()
+        rubric = []
+        for category, item in zip(RUBRIC_CATEGORIES, parsed.get("rubric", [])):
+            rubric.append({
+                "category": item.get("category", category),
+                "score": max(1, min(6, round(float(item.get("score", score))))),
+                "feedback": item.get("feedback", "").strip(),
+            })
+        if len(rubric) != len(RUBRIC_CATEGORIES):
+            raise ValueError("Incomplete rubric breakdown")
+    except (json.JSONDecodeError, KeyError, ValueError, TypeError):
+        rationale = content
+        rubric = [
+            {"category": category, "score": round(score), "feedback": ""}
+            for category in RUBRIC_CATEGORIES
+        ]
+
+    return {"rationale": rationale, "rubric": rubric}
 
 
 def extract_text_from_upload(file_storage):
@@ -145,6 +189,11 @@ def extract_text_from_upload(file_storage):
 @app.route("/")
 def index():
     return app.send_static_file("index.html")
+
+
+@app.route("/grader")
+def grader():
+    return app.send_static_file("grader.html")
 
 
 EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
@@ -214,6 +263,7 @@ def history():
             "score": entry.score,
             "raw": entry.raw_score,
             "rationale": entry.rationale,
+            "rubric": json.loads(entry.rubric_json) if entry.rubric_json else None,
             "created_at": entry.created_at.isoformat(),
         }
         for entry in entries
@@ -270,7 +320,9 @@ def grade():
     score = max(1.0, min(6.0, logits))
     score_rounded = round(score)
 
-    rationale = generate_rationale(essay, score_rounded)
+    feedback = generate_feedback(essay, score_rounded)
+    rationale = feedback["rationale"]
+    rubric = feedback["rubric"]
     raw_score = round(score, 3)
 
     if current_user.is_authenticated:
@@ -281,10 +333,11 @@ def grade():
             score=score_rounded,
             raw_score=raw_score,
             rationale=rationale,
+            rubric_json=json.dumps(rubric),
         ))
         db.session.commit()
 
-    return jsonify({"score": score_rounded, "raw": raw_score, "rationale": rationale})
+    return jsonify({"score": score_rounded, "raw": raw_score, "rationale": rationale, "rubric": rubric})
 
 
 if __name__ == "__main__":

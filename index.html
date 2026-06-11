@@ -6,7 +6,7 @@
   <title>AI Essay Grader</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Lora:ital,wght@0,500;0,600;1,400;1,500;1,600&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Lora:ital,wght@0,500;0,600;0,700;1,400;1,500;1,600&display=swap" rel="stylesheet">
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -25,6 +25,8 @@
       --sans: 'Inter', system-ui, sans-serif;
     }
 
+    html { scroll-behavior: smooth; }
+
     body {
       font-family: var(--sans);
       background: var(--bg);
@@ -32,803 +34,457 @@
       display: flex;
       flex-direction: column;
       align-items: center;
-      padding: 40px 20px;
       color: var(--ink);
     }
 
-    header {
+    /* Nav */
+    .nav {
       width: 100%;
-      max-width: 760px;
-      text-align: center;
-      margin-bottom: 28px;
-      padding-bottom: 20px;
       border-bottom: 1px solid var(--divider);
+      background: var(--card-bg);
     }
-    header h1 {
+    .nav-inner {
+      max-width: 1040px;
+      margin: 0 auto;
+      padding: 18px 24px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .brand {
       font-family: var(--serif);
-      font-size: 2.25rem;
       font-weight: 600;
+      font-size: 1.25rem;
       color: var(--ink);
+      text-decoration: none;
       letter-spacing: 0.01em;
     }
-    header p {
-      margin-top: 8px;
-      color: var(--ink-muted);
-      font-size: 0.95rem;
-      font-family: var(--serif);
-      font-style: italic;
-    }
-
-    .card {
-      background: var(--card-bg);
-      border: 1px solid var(--card-border);
-      border-radius: 10px;
-      box-shadow: 0 1px 2px rgba(43,36,31,0.04), 0 8px 24px rgba(43,36,31,0.05);
-      padding: 32px;
-      width: 100%;
-      max-width: 760px;
-    }
-
-    label {
-      display: block;
-      font-weight: 600;
-      margin-bottom: 8px;
-      font-size: 0.8rem;
-      text-transform: uppercase;
-      letter-spacing: 0.08em;
-      color: var(--ink-soft);
-    }
-
-    textarea {
-      width: 100%;
-      height: 280px;
-      border: 1px solid var(--input-border);
-      border-radius: 6px;
-      padding: 16px;
-      font-size: 1rem;
-      line-height: 1.7;
-      resize: vertical;
-      outline: none;
-      transition: border-color 0.2s;
-      font-family: var(--serif);
-      color: var(--ink);
-      background: #fffefc;
-    }
-    textarea:focus { border-color: var(--accent); }
-
-    .meta {
+    .brand span { color: var(--accent); }
+    .nav-links {
       display: flex;
-      justify-content: space-between;
       align-items: center;
-      margin-top: 8px;
-      font-size: 0.8rem;
-      color: var(--ink-muted);
+      gap: 24px;
     }
-
-    .upload-label {
-      display: inline-flex;
-      align-items: center;
-      gap: 6px;
-      margin: 0;
-      font-weight: 600;
-      font-size: 0.8rem;
-      color: var(--accent);
-      cursor: pointer;
-      transition: color 0.2s;
+    .nav-links a {
+      color: var(--ink-soft);
+      text-decoration: none;
+      font-size: 0.92rem;
+      font-weight: 500;
     }
-    .upload-label:hover { color: var(--accent-hover); text-decoration: underline; }
-    .upload-label.disabled {
-      color: #b9ad9a;
-      cursor: not-allowed;
-      pointer-events: none;
-    }
-    #file-name {
-      font-size: 0.8rem;
-      color: var(--ink-muted);
-    }
-
-    button {
-      margin-top: 20px;
-      width: 100%;
-      padding: 14px;
+    .nav-links a:hover { color: var(--accent); }
+    .nav-cta {
+      display: inline-block;
+      padding: 10px 20px;
       background: var(--accent);
-      color: #fdf8f0;
-      font-size: 0.95rem;
+      color: #fdf8f0 !important;
       font-weight: 600;
-      text-transform: uppercase;
-      letter-spacing: 0.08em;
-      border: none;
+      font-size: 0.85rem;
       border-radius: 6px;
-      cursor: pointer;
-      font-family: var(--sans);
-      transition: background 0.2s, opacity 0.2s;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      transition: background 0.2s;
     }
-    button:hover:not(:disabled):not(.link-btn) { background: var(--accent-hover); }
-    button:disabled { opacity: 0.6; cursor: not-allowed; }
+    .nav-cta:hover { background: var(--accent-hover); }
 
-    /* Result panel */
-    #result {
-      display: none;
-      margin-top: 32px;
+    /* Hero */
+    .hero {
+      width: 100%;
+      max-width: 1040px;
+      padding: 80px 24px 60px;
       text-align: center;
     }
-
-    .score-label {
-      font-size: 0.8rem;
-      font-weight: 600;
-      text-transform: uppercase;
-      letter-spacing: 0.12em;
-      color: var(--ink-muted);
-      margin-bottom: 8px;
-    }
-
-    .score-number {
-      font-family: var(--serif);
-      font-size: 5rem;
-      font-weight: 600;
-      line-height: 1;
-    }
-
-    .score-bar-wrap {
-      margin: 24px auto 0;
-      max-width: 400px;
-    }
-    .score-bar-track {
-      background: var(--divider);
-      border-radius: 999px;
-      height: 8px;
-      overflow: hidden;
-    }
-    .score-bar-fill {
-      height: 100%;
-      border-radius: 999px;
-      transition: width 0.6s ease;
-    }
-    .score-ticks {
-      display: flex;
-      justify-content: space-between;
-      margin-top: 6px;
-      font-size: 0.75rem;
-      color: var(--ink-muted);
-      padding: 0 2px;
-    }
-
-    .score-band {
-      margin-top: 16px;
+    .eyebrow {
       display: inline-block;
-      padding: 5px 16px;
-      border-radius: 999px;
-      font-size: 0.85rem;
-      font-weight: 600;
-      font-family: var(--serif);
-      font-style: italic;
-    }
-
-    /* Rationale */
-    #rationale-wrap {
-      display: none;
-      margin-top: 32px;
-      text-align: left;
-      border-top: 1px solid var(--divider);
-      padding-top: 24px;
-    }
-    #rationale-wrap h3 {
-      font-size: 0.8rem;
+      font-size: 0.78rem;
       font-weight: 700;
       text-transform: uppercase;
-      letter-spacing: 0.12em;
-      color: var(--ink-muted);
-      margin-bottom: 14px;
-    }
-    #rationale-text {
-      font-family: var(--serif);
-      font-size: 1.02rem;
-      line-height: 1.8;
-      color: var(--ink-soft);
-      white-space: pre-wrap;
-    }
-
-    /* Error */
-    #error {
-      display: none;
-      margin-top: 16px;
-      padding: 12px 16px;
-      background: #fbeeec;
-      border: 1px solid #ecccc6;
-      border-radius: 6px;
-      color: #9a3429;
-      font-size: 0.9rem;
-    }
-
-    /* Loading spinner */
-    .spinner {
-      display: inline-block;
-      width: 16px;
-      height: 16px;
-      border: 2px solid rgba(253,248,240,0.4);
-      border-top-color: #fdf8f0;
-      border-radius: 50%;
-      animation: spin 0.7s linear infinite;
-      vertical-align: middle;
-      margin-right: 8px;
-    }
-    @keyframes spin { to { transform: rotate(360deg); } }
-
-    /* Auth bar */
-    .auth-bar {
-      width: 100%;
-      max-width: 760px;
-      display: flex;
-      justify-content: flex-end;
-      align-items: center;
-      gap: 18px;
-      margin-bottom: 12px;
-      font-size: 0.82rem;
-      color: var(--ink-muted);
-    }
-    .link-btn {
-      all: unset;
-      cursor: pointer;
+      letter-spacing: 0.16em;
       color: var(--accent);
-      font-weight: 600;
-      font-size: 0.82rem;
-    }
-    .link-btn:hover { text-decoration: underline; color: var(--accent-hover); }
-
-    #auth-actions-out, #auth-actions-in {
-      display: inline-flex;
-      align-items: center;
-      gap: 14px;
-    }
-
-    /* Modal */
-    .modal-overlay {
-      display: none;
-      position: fixed;
-      inset: 0;
-      background: rgba(43, 36, 31, 0.5);
-      align-items: center;
-      justify-content: center;
-      z-index: 100;
-      padding: 20px;
-    }
-    .modal-overlay.open { display: flex; }
-    .modal {
-      background: var(--card-bg);
-      border: 1px solid var(--card-border);
-      border-radius: 10px;
-      box-shadow: 0 12px 48px rgba(43,36,31,0.25);
-      padding: 32px;
-      width: 100%;
-      max-width: 380px;
-      position: relative;
-    }
-    .modal h2 {
-      font-family: var(--serif);
-      font-size: 1.5rem;
-      font-weight: 600;
+      background: rgba(125, 35, 48, 0.08);
+      padding: 6px 16px;
+      border-radius: 999px;
       margin-bottom: 22px;
     }
-    .modal-close {
-      all: unset;
-      position: absolute;
-      top: 18px;
-      right: 18px;
-      cursor: pointer;
-      font-size: 1.3rem;
-      line-height: 1;
-      color: var(--ink-muted);
-    }
-    .modal-close:hover { color: var(--ink); }
-    .field { margin-bottom: 16px; }
-    .field input {
-      width: 100%;
-      border: 1px solid var(--input-border);
-      border-radius: 6px;
-      padding: 12px 14px;
-      font-size: 0.95rem;
-      font-family: var(--sans);
-      outline: none;
+    .hero h1 {
+      font-family: var(--serif);
+      font-size: 3rem;
+      line-height: 1.2;
+      font-weight: 700;
       color: var(--ink);
-      background: #fffefc;
-      transition: border-color 0.2s;
+      max-width: 760px;
+      margin: 0 auto 20px;
     }
-    .field input:focus { border-color: var(--accent); }
-    .form-error {
-      display: none;
-      margin-top: 4px;
-      margin-bottom: 12px;
-      padding: 10px 14px;
-      background: #fbeeec;
-      border: 1px solid #ecccc6;
-      border-radius: 6px;
-      color: #9a3429;
-      font-size: 0.85rem;
-    }
-    .modal-switch {
-      margin-top: 16px;
-      font-size: 0.85rem;
-      color: var(--ink-muted);
-      text-align: center;
-    }
-
-    /* History panel */
-    #history-panel { display: none; }
-    .history-header {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      margin-bottom: 24px;
-      padding-bottom: 16px;
-      border-bottom: 1px solid var(--divider);
-    }
-    .history-header h2 {
-      font-family: var(--serif);
-      font-size: 1.4rem;
-      font-weight: 600;
-    }
-    #history-empty {
-      color: var(--ink-muted);
-      font-size: 0.9rem;
-      text-align: center;
-      padding: 24px 0;
-      font-family: var(--serif);
+    .hero h1 em {
+      color: var(--accent);
       font-style: italic;
     }
-    .history-item {
-      border: 1px solid var(--divider);
-      border-radius: 8px;
-      padding: 18px;
-      margin-bottom: 14px;
+    .hero p.lead {
+      font-family: var(--serif);
+      font-size: 1.15rem;
+      line-height: 1.7;
+      color: var(--ink-soft);
+      max-width: 620px;
+      margin: 0 auto 36px;
     }
-    .history-item-top {
+    .hero-actions {
       display: flex;
-      justify-content: space-between;
-      align-items: center;
-      margin-bottom: 10px;
+      gap: 16px;
+      justify-content: center;
+      flex-wrap: wrap;
     }
-    .history-score-badge {
+    .btn {
+      display: inline-block;
+      padding: 15px 32px;
+      font-size: 0.92rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      border-radius: 6px;
+      text-decoration: none;
+      transition: background 0.2s, color 0.2s, border-color 0.2s;
+      font-family: var(--sans);
+    }
+    .btn-primary {
+      background: var(--accent);
+      color: #fdf8f0;
+      border: 1px solid var(--accent);
+    }
+    .btn-primary:hover { background: var(--accent-hover); border-color: var(--accent-hover); }
+    .btn-secondary {
+      background: transparent;
+      color: var(--ink-soft);
+      border: 1px solid var(--input-border);
+    }
+    .btn-secondary:hover { border-color: var(--accent); color: var(--accent); }
+
+    /* Score preview graphic */
+    .hero-preview {
+      max-width: 620px;
+      margin: 56px auto 0;
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      border-radius: 12px;
+      box-shadow: 0 1px 2px rgba(43,36,31,0.04), 0 12px 32px rgba(43,36,31,0.06);
+      padding: 28px 32px;
+      text-align: left;
+    }
+    .hero-preview-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 18px;
+    }
+    .hero-preview-row:last-child { margin-bottom: 0; }
+    .hero-preview-label {
+      font-size: 0.75rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      color: var(--ink-muted);
+    }
+    .hero-score {
+      font-family: var(--serif);
+      font-weight: 700;
+      font-size: 1.6rem;
+      color: var(--accent);
+    }
+    .hero-bar-track {
+      flex: 1;
+      margin: 0 16px;
+      height: 8px;
+      border-radius: 999px;
+      background: var(--divider);
+      overflow: hidden;
+    }
+    .hero-bar-fill {
+      height: 100%;
+      width: 78%;
+      border-radius: 999px;
+      background: linear-gradient(90deg, #4f7d4a, #3a5f7d);
+    }
+    .hero-rubric-grid {
+      display: grid;
+      grid-template-columns: repeat(5, 1fr);
+      gap: 10px;
+    }
+    .hero-rubric-item {
+      text-align: center;
+      padding: 10px 4px;
+      border-radius: 8px;
+      background: var(--bg);
+    }
+    .hero-rubric-item .num {
+      font-family: var(--serif);
+      font-weight: 700;
+      font-size: 1.3rem;
+      color: var(--ink);
+    }
+    .hero-rubric-item .label {
+      margin-top: 4px;
+      font-size: 0.62rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--ink-muted);
+      line-height: 1.3;
+    }
+
+    /* Sections */
+    section { width: 100%; max-width: 1040px; padding: 60px 24px; }
+    .section-head { text-align: center; max-width: 620px; margin: 0 auto 48px; }
+    .section-head .eyebrow { margin-bottom: 14px; }
+    .section-head h2 {
+      font-family: var(--serif);
+      font-size: 2.1rem;
+      font-weight: 700;
+      margin-bottom: 12px;
+    }
+    .section-head p {
+      color: var(--ink-soft);
+      font-size: 1rem;
+      line-height: 1.7;
+    }
+
+    /* Features grid */
+    .features-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+      gap: 20px;
+    }
+    .feature-card {
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      border-radius: 10px;
+      padding: 28px;
+      box-shadow: 0 1px 2px rgba(43,36,31,0.04);
+    }
+    .feature-icon {
+      width: 44px;
+      height: 44px;
+      border-radius: 10px;
+      background: rgba(125, 35, 48, 0.08);
+      color: var(--accent);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.3rem;
+      margin-bottom: 16px;
+    }
+    .feature-card h3 {
+      font-family: var(--serif);
+      font-size: 1.15rem;
+      font-weight: 600;
+      margin-bottom: 8px;
+    }
+    .feature-card p {
+      color: var(--ink-soft);
+      font-size: 0.92rem;
+      line-height: 1.65;
+    }
+
+    /* How it works */
+    .steps {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 28px;
+      counter-reset: step;
+    }
+    .step {
+      position: relative;
+      padding-top: 8px;
+    }
+    .step-num {
       display: inline-flex;
       align-items: center;
       justify-content: center;
-      min-width: 36px;
-      height: 36px;
-      border-radius: 999px;
+      width: 40px;
+      height: 40px;
+      border-radius: 50%;
+      background: var(--accent);
+      color: #fdf8f0;
+      font-family: var(--serif);
       font-weight: 700;
-      font-size: 1.05rem;
-      font-family: var(--serif);
+      font-size: 1.1rem;
+      margin-bottom: 16px;
     }
-    .history-date { font-size: 0.8rem; color: var(--ink-muted); }
-    .history-excerpt { font-family: var(--serif); font-size: 0.92rem; color: var(--ink-soft); margin-bottom: 10px; line-height: 1.6; }
-    .history-rationale {
+    .step h3 {
       font-family: var(--serif);
-      font-size: 0.92rem;
-      line-height: 1.7;
+      font-size: 1.1rem;
+      font-weight: 600;
+      margin-bottom: 8px;
+    }
+    .step p {
       color: var(--ink-soft);
-      white-space: pre-wrap;
-      border-top: 1px solid var(--divider);
-      padding-top: 10px;
+      font-size: 0.92rem;
+      line-height: 1.65;
+    }
+
+    /* CTA band */
+    .cta-band {
+      width: 100%;
+      background: var(--accent);
+      color: #fdf8f0;
+      text-align: center;
+      padding: 64px 24px;
+    }
+    .cta-band h2 {
+      font-family: var(--serif);
+      font-size: 2rem;
+      font-weight: 700;
+      margin-bottom: 14px;
+    }
+    .cta-band p {
+      font-size: 1rem;
+      opacity: 0.9;
+      max-width: 520px;
+      margin: 0 auto 32px;
+      line-height: 1.6;
+    }
+    .cta-band .btn-primary {
+      background: #fdf8f0;
+      color: var(--accent);
+      border-color: #fdf8f0;
+    }
+    .cta-band .btn-primary:hover {
+      background: #f0e7d6;
+      border-color: #f0e7d6;
+    }
+
+    /* Footer */
+    footer {
+      width: 100%;
+      max-width: 1040px;
+      padding: 32px 24px 48px;
+      text-align: center;
+      color: var(--ink-muted);
+      font-size: 0.85rem;
+    }
+    footer a { color: var(--accent); text-decoration: none; }
+    footer a:hover { text-decoration: underline; }
+
+    @media (max-width: 640px) {
+      .hero h1 { font-size: 2.1rem; }
+      .hero-rubric-grid { grid-template-columns: repeat(2, 1fr); }
+      .nav-links { gap: 14px; }
+      .nav-links span#nav-auth-status { display: none; }
     }
   </style>
 </head>
 <body>
-  <div class="auth-bar">
-    <span id="auth-status">Not signed in</span>
-    <span id="auth-actions-out">
-      <button class="link-btn" id="login-btn" type="button">Log in</button>
-      <button class="link-btn" id="signup-btn" type="button">Sign up</button>
-    </span>
-    <span id="auth-actions-in" style="display:none">
-      <button class="link-btn" id="history-btn" type="button">History</button>
-      <button class="link-btn" id="logout-btn" type="button">Log out</button>
-    </span>
-  </div>
-
-  <header>
-    <h1>AI Essay Grader</h1>
-    <p>Paste your essay below and get an AI-generated score from 1 to 6.</p>
-  </header>
-
-  <div class="card" id="grader-card">
-    <label for="essay">Your Essay</label>
-    <textarea id="essay" placeholder="Paste or type your essay here..."></textarea>
-    <div class="meta">
-      <span>
-        <label for="file-input" class="upload-label" id="upload-label">Upload a file (.txt, .pdf, .docx)</label>
-        <input type="file" id="file-input" accept=".txt,.pdf,.docx" hidden />
-        <span id="file-name"></span>
-      </span>
-      <span id="word-count">0 words</span>
-    </div>
-
-    <button id="grade-btn" onclick="gradeEssay()">Grade Essay</button>
-
-    <div id="error"></div>
-
-    <div id="result">
-      <div class="score-label">Score</div>
-      <div class="score-number" id="score-display">—</div>
-      <div class="score-bar-wrap">
-        <div class="score-bar-track">
-          <div class="score-bar-fill" id="score-bar"></div>
-        </div>
-        <div class="score-ticks">
-          <span>1</span><span>2</span><span>3</span><span>4</span><span>5</span><span>6</span>
-        </div>
+  <nav class="nav">
+    <div class="nav-inner">
+      <a class="brand" href="/">Essay<span>Grader</span></a>
+      <div class="nav-links">
+        <a href="/">Home</a>
+        <a href="/grader">Grader</a>
+        <a class="nav-cta" href="/grader">Grade an Essay</a>
       </div>
-      <span class="score-band" id="score-band"></span>
+    </div>
+  </nav>
+
+  <section class="hero">
+    <span class="eyebrow">AI-Powered Writing Feedback</span>
+    <h1>Know exactly how your essay scores — <em>before</em> you turn it in</h1>
+    <p class="lead">
+      Paste or upload an essay and get an instant 1&ndash;6 score from a model trained on
+      thousands of student essays, plus a detailed written rationale, a category-by-category
+      rubric breakdown, and a track record of your progress over time.
+    </p>
+    <div class="hero-actions">
+      <a class="btn btn-primary" href="/grader">Grade My Essay</a>
+      <a class="btn btn-secondary" href="#features">See How It Works</a>
     </div>
 
-    <div id="rationale-wrap">
-      <h3>Rationale</h3>
-      <p id="rationale-text"></p>
-    </div>
-  </div>
-
-  <div class="card" id="history-panel">
-    <div class="history-header">
-      <h2>Your History</h2>
-      <button class="link-btn" id="back-to-grading-btn" type="button">&larr; Back to grading</button>
-    </div>
-    <div id="history-list"></div>
-    <p id="history-empty" style="display:none">You haven't graded any essays yet.</p>
-  </div>
-
-  <div class="modal-overlay" id="auth-overlay">
-    <div class="modal">
-      <button class="modal-close" id="auth-modal-close" type="button" aria-label="Close">&times;</button>
-      <h2 id="auth-modal-title">Log in</h2>
-      <div class="field">
-        <label for="auth-email">Email</label>
-        <input type="email" id="auth-email" autocomplete="email" />
+    <div class="hero-preview">
+      <div class="hero-preview-row">
+        <span class="hero-preview-label">Overall Score</span>
+        <div class="hero-bar-track"><div class="hero-bar-fill"></div></div>
+        <span class="hero-score">4.7 / 6</span>
       </div>
-      <div class="field">
-        <label for="auth-password">Password</label>
-        <input type="password" id="auth-password" autocomplete="current-password" />
+      <div class="hero-rubric-grid">
+        <div class="hero-rubric-item"><div class="num">5</div><div class="label">Ideas &amp; Content</div></div>
+        <div class="hero-rubric-item"><div class="num">4</div><div class="label">Organization</div></div>
+        <div class="hero-rubric-item"><div class="num">5</div><div class="label">Voice &amp; Style</div></div>
+        <div class="hero-rubric-item"><div class="num">4</div><div class="label">Sentence Fluency</div></div>
+        <div class="hero-rubric-item"><div class="num">5</div><div class="label">Conventions</div></div>
       </div>
-      <div class="form-error" id="auth-error"></div>
-      <button id="auth-submit-btn" type="button">Log in</button>
-      <p class="modal-switch">
-        <span id="auth-switch-text">Don't have an account?</span>
-        <button class="link-btn" id="auth-switch-btn" type="button">Sign up</button>
+    </div>
+  </section>
+
+  <section id="features">
+    <div class="section-head">
+      <span class="eyebrow">Features</span>
+      <h2>Everything you need to improve your writing</h2>
+      <p>
+        Built for students who want fast, specific, and actionable feedback &mdash;
+        without waiting for a teacher's office hours.
       </p>
     </div>
+    <div class="features-grid">
+      <div class="feature-card">
+        <div class="feature-icon">★</div>
+        <h3>Instant AI Scoring</h3>
+        <p>Get a 1&ndash;6 holistic score in seconds from a fine-tuned Longformer model trained on real student essay data.</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon">✎</div>
+        <h3>Personalized Feedback</h3>
+        <p>Receive a clear, constructive rationale that highlights what's working and exactly what to fix next.</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon">▤</div>
+        <h3>Rubric Breakdown</h3>
+        <p>Click through to per-category scores for Ideas &amp; Content, Organization, Voice &amp; Style, Sentence Fluency, and Conventions.</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon">⤓</div>
+        <h3>Downloadable PDF Reports</h3>
+        <p>Save a polished PDF of your essay, score, and feedback &mdash; perfect for sharing with a teacher or tutor.</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon">📈</div>
+        <h3>Track Your Progress</h3>
+        <p>Create a free account to save every essay you grade and watch a chart of your scores improve over time.</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon">⇪</div>
+        <h3>Upload Any Format</h3>
+        <p>Paste text directly, or upload a .txt, .pdf, or .docx file and we'll extract the text for you.</p>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="section-head">
+      <span class="eyebrow">How It Works</span>
+      <h2>Three steps to better feedback</h2>
+    </div>
+    <div class="steps">
+      <div class="step">
+        <div class="step-num">1</div>
+        <h3>Paste or upload your essay</h3>
+        <p>Drop your draft into the editor or upload a .txt, .pdf, or .docx file &mdash; no formatting needed.</p>
+      </div>
+      <div class="step">
+        <div class="step-num">2</div>
+        <h3>Get an instant AI score</h3>
+        <p>Our model analyzes your writing and returns a 1&ndash;6 score along with a written rationale.</p>
+      </div>
+      <div class="step">
+        <div class="step-num">3</div>
+        <h3>Dig into the details</h3>
+        <p>Open the rubric breakdown for category-level scores, download a PDF report, and track your progress over time.</p>
+      </div>
+    </div>
+  </section>
+
+  <div class="cta-band">
+    <h2>Ready to see your score?</h2>
+    <p>It only takes a minute &mdash; no account required to get started, and free to sign up for progress tracking.</p>
+    <a class="btn btn-primary" href="/grader">Grade My Essay</a>
   </div>
 
-  <script>
-    const essay = document.getElementById('essay');
-    const wordCount = document.getElementById('word-count');
-
-    essay.addEventListener('input', () => {
-      const words = essay.value.trim() === '' ? 0 : essay.value.trim().split(/\s+/).length;
-      wordCount.textContent = words + ' word' + (words !== 1 ? 's' : '');
-    });
-
-    const fileInput = document.getElementById('file-input');
-    const uploadLabel = document.getElementById('upload-label');
-    const fileName = document.getElementById('file-name');
-
-    fileInput.addEventListener('change', async () => {
-      const file = fileInput.files[0];
-      if (!file) return;
-
-      const errorEl = document.getElementById('error');
-      errorEl.style.display = 'none';
-
-      fileName.textContent = file.name;
-      uploadLabel.classList.add('disabled');
-      const previousLabel = uploadLabel.textContent;
-      uploadLabel.textContent = 'Reading file…';
-
-      const formData = new FormData();
-      formData.append('file', file);
-
-      try {
-        const res = await fetch('/extract', { method: 'POST', body: formData });
-        const data = await res.json();
-
-        if (!res.ok) {
-          showError(data.error || 'Could not read that file.');
-          fileName.textContent = '';
-          return;
-        }
-
-        essay.value = data.text;
-        essay.dispatchEvent(new Event('input'));
-      } catch (e) {
-        showError('Could not reach the server while uploading the file.');
-        fileName.textContent = '';
-      } finally {
-        uploadLabel.classList.remove('disabled');
-        uploadLabel.textContent = previousLabel;
-        fileInput.value = '';
-      }
-    });
-
-    const BANDS = [
-      { max: 1.5, label: 'Inadequate',  color: '#a3342c', bar: '#a3342c' },
-      { max: 2.5, label: 'Developing',  color: '#b3672e', bar: '#b3672e' },
-      { max: 3.5, label: 'Approaching', color: '#ab8a2c', bar: '#ab8a2c' },
-      { max: 4.5, label: 'Proficient',  color: '#4f7d4a', bar: '#4f7d4a' },
-      { max: 5.5, label: 'Advanced',    color: '#3a5f7d', bar: '#3a5f7d' },
-      { max: 6.0, label: 'Exemplary',   color: '#6c4f7d', bar: '#6c4f7d' },
-    ];
-
-    function getBand(score) {
-      return BANDS.find(b => score <= b.max) || BANDS[BANDS.length - 1];
-    }
-
-    async function gradeEssay() {
-      const text = essay.value.trim();
-      const btn = document.getElementById('grade-btn');
-      const errorEl = document.getElementById('error');
-      const resultEl = document.getElementById('result');
-
-      errorEl.style.display = 'none';
-      resultEl.style.display = 'none';
-
-      if (!text) {
-        showError('Please enter an essay before grading.');
-        return;
-      }
-
-      btn.disabled = true;
-      btn.innerHTML = '<span class="spinner"></span>Scoring essay…';
-
-      try {
-        const res = await fetch('/grade', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ essay: text }),
-        });
-
-        const data = await res.json();
-
-        if (!res.ok) {
-          showError(data.error || 'Something went wrong.');
-          return;
-        }
-
-        showResult(data.score, data.rationale);
-      } catch (e) {
-        showError('Could not reach the server. Make sure app.py is running.');
-      } finally {
-        btn.disabled = false;
-        btn.textContent = 'Grade Essay';
-      }
-    }
-
-    function showError(msg) {
-      const el = document.getElementById('error');
-      el.textContent = msg;
-      el.style.display = 'block';
-    }
-
-    function showResult(score, rationale) {
-      const band = getBand(score);
-      const pct = ((score - 1) / 5) * 100;
-
-      document.getElementById('score-display').textContent = score.toFixed(1);
-      document.getElementById('score-display').style.color = band.color;
-
-      const bar = document.getElementById('score-bar');
-      bar.style.width = pct + '%';
-      bar.style.background = band.bar;
-
-      const bandEl = document.getElementById('score-band');
-      bandEl.textContent = band.label;
-      bandEl.style.background = band.color + '20';
-      bandEl.style.color = band.color;
-
-      document.getElementById('result').style.display = 'block';
-
-      if (rationale) {
-        document.getElementById('rationale-text').textContent = rationale;
-        document.getElementById('rationale-wrap').style.display = 'block';
-      }
-    }
-
-    // ----- Auth & history -----
-
-    let currentUserEmail = null;
-    let authMode = 'login';
-
-    const graderCard = document.getElementById('grader-card');
-    const historyPanel = document.getElementById('history-panel');
-
-    const authStatus = document.getElementById('auth-status');
-    const authActionsOut = document.getElementById('auth-actions-out');
-    const authActionsIn = document.getElementById('auth-actions-in');
-    const loginBtn = document.getElementById('login-btn');
-    const signupBtn = document.getElementById('signup-btn');
-    const historyBtn = document.getElementById('history-btn');
-    const logoutBtn = document.getElementById('logout-btn');
-    const backToGradingBtn = document.getElementById('back-to-grading-btn');
-
-    const authOverlay = document.getElementById('auth-overlay');
-    const authModalTitle = document.getElementById('auth-modal-title');
-    const authModalClose = document.getElementById('auth-modal-close');
-    const authEmailInput = document.getElementById('auth-email');
-    const authPasswordInput = document.getElementById('auth-password');
-    const authError = document.getElementById('auth-error');
-    const authSubmitBtn = document.getElementById('auth-submit-btn');
-    const authSwitchText = document.getElementById('auth-switch-text');
-    const authSwitchBtn = document.getElementById('auth-switch-btn');
-
-    function updateAuthUI() {
-      if (currentUserEmail) {
-        authStatus.textContent = 'Signed in as ' + currentUserEmail;
-        authActionsOut.style.display = 'none';
-        authActionsIn.style.display = '';
-      } else {
-        authStatus.textContent = 'Not signed in';
-        authActionsOut.style.display = '';
-        authActionsIn.style.display = 'none';
-      }
-    }
-
-    async function checkAuth() {
-      try {
-        const res = await fetch('/api/me');
-        const data = await res.json();
-        currentUserEmail = data.email;
-      } catch (e) {
-        currentUserEmail = null;
-      }
-      updateAuthUI();
-    }
-
-    function showGrader() {
-      historyPanel.style.display = 'none';
-      graderCard.style.display = '';
-    }
-
-    async function showHistory() {
-      graderCard.style.display = 'none';
-      historyPanel.style.display = 'block';
-      await loadHistory();
-    }
-
-    function escapeHtml(str) {
-      const div = document.createElement('div');
-      div.textContent = str;
-      return div.innerHTML;
-    }
-
-    function renderHistoryItem(entry) {
-      const band = getBand(entry.score);
-      const date = new Date(entry.created_at).toLocaleString(undefined, {
-        year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit',
-      });
-      return (
-        '<div class="history-item">' +
-          '<div class="history-item-top">' +
-            '<span class="history-score-badge" style="background:' + band.color + '20;color:' + band.color + '">' + entry.score + '</span>' +
-            '<span class="history-date">' + escapeHtml(date) + '</span>' +
-          '</div>' +
-          '<p class="history-excerpt">' + escapeHtml(entry.essay_excerpt) + '</p>' +
-          '<p class="history-rationale">' + escapeHtml(entry.rationale) + '</p>' +
-        '</div>'
-      );
-    }
-
-    async function loadHistory() {
-      const list = document.getElementById('history-list');
-      const empty = document.getElementById('history-empty');
-      empty.style.display = 'none';
-      list.innerHTML = '<p style="text-align:center;color:#888;padding:20px 0;">Loading…</p>';
-
-      try {
-        const res = await fetch('/api/history');
-        if (!res.ok) {
-          list.innerHTML = '';
-          empty.textContent = 'Could not load your history.';
-          empty.style.display = 'block';
-          return;
-        }
-
-        const entries = await res.json();
-        if (entries.length === 0) {
-          list.innerHTML = '';
-          empty.textContent = "You haven't graded any essays yet.";
-          empty.style.display = 'block';
-          return;
-        }
-
-        list.innerHTML = entries.map(renderHistoryItem).join('');
-      } catch (e) {
-        list.innerHTML = '';
-        empty.textContent = 'Could not reach the server.';
-        empty.style.display = 'block';
-      }
-    }
-
-    function openAuthModal(mode) {
-      authMode = mode;
-      authError.style.display = 'none';
-      authEmailInput.value = '';
-      authPasswordInput.value = '';
-
-      if (mode === 'signup') {
-        authModalTitle.textContent = 'Sign up';
-        authSubmitBtn.textContent = 'Sign up';
-        authSwitchText.textContent = "Already have an account?";
-        authSwitchBtn.textContent = 'Log in';
-      } else {
-        authModalTitle.textContent = 'Log in';
-        authSubmitBtn.textContent = 'Log in';
-        authSwitchText.textContent = "Don't have an account?";
-        authSwitchBtn.textContent = 'Sign up';
-      }
-
-      authOverlay.classList.add('open');
-      authEmailInput.focus();
-    }
-
-    function closeAuthModal() {
-      authOverlay.classList.remove('open');
-    }
-
-    async function submitAuth() {
-      const email = authEmailInput.value.trim();
-      const password = authPasswordInput.value;
-
-      authError.style.display = 'none';
-      if (!email || !password) {
-        authError.textContent = 'Please fill in both fields.';
-        authError.style.display = 'block';
-        return;
-      }
-
-      const endpoint = authMode === 'signup' ? '/api/signup' : '/api/login';
-      authSubmitBtn.disabled = true;
-
-      try {
-        const res = await fetch(endpoint, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ email, password }),
-        });
-        const data = await res.json();
-
-        if (!res.ok) {
-          authError.textContent = data.error || 'Something went wrong.';
-          authError.style.display = 'block';
-          return;
-        }
-
-        currentUserEmail = data.email;
-        updateAuthUI();
-        closeAuthModal();
-      } catch (e) {
-        authError.textContent = 'Could not reach the server.';
-        authError.style.display = 'block';
-      } finally {
-        authSubmitBtn.disabled = false;
-      }
-    }
-
-    async function logout() {
-      try {
-        await fetch('/api/logout', { method: 'POST' });
-      } catch (e) {}
-      currentUserEmail = null;
-      updateAuthUI();
-      showGrader();
-    }
-
-    loginBtn.addEventListener('click', () => openAuthModal('login'));
-    signupBtn.addEventListener('click', () => openAuthModal('signup'));
-    authSwitchBtn.addEventListener('click', () => openAuthModal(authMode === 'login' ? 'signup' : 'login'));
-    authModalClose.addEventListener('click', closeAuthModal);
-    authOverlay.addEventListener('click', (e) => { if (e.target === authOverlay) closeAuthModal(); });
-    authSubmitBtn.addEventListener('click', submitAuth);
-    authPasswordInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') submitAuth(); });
-    historyBtn.addEventListener('click', showHistory);
-    logoutBtn.addEventListener('click', logout);
-    backToGradingBtn.addEventListener('click', showGrader);
-
-    checkAuth();
-  </script>
+  <footer>
+    <p>AI Essay Grader &mdash; an automated writing feedback tool built to help students practice and improve.</p>
+  </footer>
 </body>
 </html>
