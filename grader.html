@@ -95,6 +95,11 @@
       background: #fffefc;
     }
     textarea:focus { border-color: var(--accent); }
+    textarea.drag-over {
+      border-color: var(--accent);
+      border-style: dashed;
+      background: rgba(125, 35, 48, 0.04);
+    }
 
     .meta {
       display: flex;
@@ -318,6 +323,12 @@
       margin-top: 14px;
       border-top: 1px solid var(--divider);
       padding-top: 14px;
+    }
+    .history-actions {
+      display: flex;
+      gap: 10px;
+      margin-top: 12px;
+      flex-wrap: wrap;
     }
 
     /* History score chart */
@@ -572,7 +583,7 @@
     <textarea id="essay" placeholder="Paste or type your essay here..."></textarea>
     <div class="meta">
       <span>
-        <label for="file-input" class="upload-label" id="upload-label">Upload a file (.txt, .pdf, .docx)</label>
+        <label for="file-input" class="upload-label" id="upload-label">Upload a file (.txt, .pdf, .docx) or drag &amp; drop</label>
         <input type="file" id="file-input" accept=".txt,.pdf,.docx" hidden />
         <span id="file-name"></span>
       </span>
@@ -665,8 +676,7 @@
     const uploadLabel = document.getElementById('upload-label');
     const fileName = document.getElementById('file-name');
 
-    fileInput.addEventListener('change', async () => {
-      const file = fileInput.files[0];
+    async function handleFileUpload(file) {
       if (!file) return;
 
       const errorEl = document.getElementById('error');
@@ -698,8 +708,50 @@
       } finally {
         uploadLabel.classList.remove('disabled');
         uploadLabel.textContent = previousLabel;
-        fileInput.value = '';
       }
+    }
+
+    fileInput.addEventListener('change', async () => {
+      await handleFileUpload(fileInput.files[0]);
+      fileInput.value = '';
+    });
+
+    // Drag & drop a file directly onto the essay textarea
+    let dragCounter = 0;
+
+    essay.addEventListener('dragenter', (e) => {
+      e.preventDefault();
+      dragCounter++;
+      essay.classList.add('drag-over');
+    });
+
+    essay.addEventListener('dragover', (e) => {
+      e.preventDefault();
+    });
+
+    essay.addEventListener('dragleave', (e) => {
+      e.preventDefault();
+      dragCounter--;
+      if (dragCounter <= 0) {
+        dragCounter = 0;
+        essay.classList.remove('drag-over');
+      }
+    });
+
+    essay.addEventListener('drop', async (e) => {
+      e.preventDefault();
+      dragCounter = 0;
+      essay.classList.remove('drag-over');
+
+      const file = e.dataTransfer.files[0];
+      if (file) {
+        await handleFileUpload(file);
+      }
+    });
+
+    // Prevent the browser from navigating away if a file is dropped outside the textarea
+    ['dragover', 'drop'].forEach(evt => {
+      document.addEventListener(evt, (e) => e.preventDefault());
     });
 
     const BANDS = [
@@ -836,7 +888,8 @@
       downloadResultPdf(lastResult);
     });
 
-    function downloadResultPdf({ essay, score, band, rationale, rubric }) {
+    function downloadResultPdf({ essay, score, band, rationale, rubric, date }) {
+      const generatedDate = date || new Date();
       const { jsPDF } = window.jspdf;
       const doc = new jsPDF({ unit: 'pt', format: 'letter' });
       const margin = 56;
@@ -877,7 +930,7 @@
       doc.setFont('helvetica', 'normal');
       doc.setFontSize(10);
       doc.setTextColor(120, 120, 120);
-      doc.text('Generated ' + new Date().toLocaleString(), margin, y);
+      doc.text('Generated ' + generatedDate.toLocaleString(), margin, y);
       doc.setTextColor(0, 0, 0);
       y += 24;
 
@@ -896,10 +949,12 @@
         addParagraph(rationale, 11);
       }
 
-      addHeading('Your Essay', 13);
+      const isExcerpt = essay.endsWith('…');
+      addHeading(isExcerpt ? 'Your Essay (excerpt)' : 'Your Essay', 13);
       addParagraph(essay, 10.5);
 
-      doc.save('essay-grade-report.pdf');
+      const fileDate = generatedDate.toISOString().slice(0, 10);
+      doc.save('essay-grade-report-' + fileDate + '.pdf');
     }
 
     // ----- Auth & history -----
@@ -969,14 +1024,18 @@
       return div.innerHTML;
     }
 
+    let historyEntries = [];
+
     function renderHistoryItem(entry) {
       const band = getBand(entry.score);
       const date = new Date(entry.created_at).toLocaleString(undefined, {
         year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit',
       });
-      const rubricSection = (entry.rubric && entry.rubric.length)
-        ? '<button class="outline-btn small" type="button" id="rubric-toggle-' + entry.id + '" onclick="toggleHistoryRubric(' + entry.id + ')">Show Detailed Breakdown</button>' +
-          '<div class="rubric-panel-inline" id="rubric-panel-' + entry.id + '">' + renderRubricHtml(entry.rubric) + '</div>'
+      const rubricToggle = (entry.rubric && entry.rubric.length)
+        ? '<button class="outline-btn small" type="button" id="rubric-toggle-' + entry.id + '" onclick="toggleHistoryRubric(' + entry.id + ')">Show Detailed Breakdown</button>'
+        : '';
+      const rubricPanel = (entry.rubric && entry.rubric.length)
+        ? '<div class="rubric-panel-inline" id="rubric-panel-' + entry.id + '">' + renderRubricHtml(entry.rubric) + '</div>'
         : '';
       return (
         '<div class="history-item">' +
@@ -986,7 +1045,11 @@
           '</div>' +
           '<p class="history-excerpt">' + escapeHtml(entry.essay_excerpt) + '</p>' +
           '<p class="history-rationale">' + escapeHtml(entry.rationale) + '</p>' +
-          rubricSection +
+          '<div class="history-actions">' +
+            rubricToggle +
+            '<button class="outline-btn small" type="button" onclick="downloadHistoryPdf(' + entry.id + ')">Download PDF</button>' +
+          '</div>' +
+          rubricPanel +
         '</div>'
       );
     }
@@ -997,6 +1060,19 @@
       const isOpen = panel.style.display === 'block';
       panel.style.display = isOpen ? 'none' : 'block';
       btn.textContent = isOpen ? 'Show Detailed Breakdown' : 'Hide Detailed Breakdown';
+    }
+
+    function downloadHistoryPdf(id) {
+      const entry = historyEntries.find(e => e.id === id);
+      if (!entry) return;
+      downloadResultPdf({
+        essay: entry.essay_text || entry.essay_excerpt,
+        score: entry.score,
+        band: getBand(entry.score).label,
+        rationale: entry.rationale,
+        rubric: entry.rubric,
+        date: new Date(entry.created_at),
+      });
     }
 
     let scoreChart = null;
@@ -1068,12 +1144,14 @@
 
         const entries = await res.json();
         if (entries.length === 0) {
+          historyEntries = [];
           list.innerHTML = '';
           empty.textContent = "You haven't graded any essays yet.";
           empty.style.display = 'block';
           return;
         }
 
+        historyEntries = entries;
         renderScoreChart(entries);
         list.innerHTML = entries.map(renderHistoryItem).join('');
       } catch (e) {

@@ -51,6 +51,7 @@ class SavedFeedback(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=False, index=True)
     essay_excerpt = db.Column(db.String(400), nullable=False)
+    essay_text = db.Column(db.Text, nullable=True)
     score = db.Column(db.Integer, nullable=False)
     raw_score = db.Column(db.Float, nullable=False)
     rationale = db.Column(db.Text, nullable=False)
@@ -69,6 +70,7 @@ with app.app_context():
     # original table was created in production.
     with db.engine.connect() as conn:
         conn.execute(db.text("ALTER TABLE saved_feedback ADD COLUMN IF NOT EXISTS rubric_json TEXT"))
+        conn.execute(db.text("ALTER TABLE saved_feedback ADD COLUMN IF NOT EXISTS essay_text TEXT"))
         conn.commit()
 
 HF_REPO = os.environ.get("HF_MODEL_REPO")
@@ -260,6 +262,7 @@ def history():
         {
             "id": entry.id,
             "essay_excerpt": entry.essay_excerpt,
+            "essay_text": entry.essay_text,
             "score": entry.score,
             "raw": entry.raw_score,
             "rationale": entry.rationale,
@@ -330,6 +333,7 @@ def grade():
         db.session.add(SavedFeedback(
             user_id=current_user.id,
             essay_excerpt=excerpt,
+            essay_text=essay,
             score=score_rounded,
             raw_score=raw_score,
             rationale=rationale,
