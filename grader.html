@@ -331,6 +331,73 @@
       flex-wrap: wrap;
     }
 
+    /* Annotated essay */
+    .anno-legend {
+      display: flex;
+      gap: 18px;
+      margin-bottom: 16px;
+      font-size: 0.82rem;
+      color: var(--ink-soft);
+      flex-wrap: wrap;
+    }
+    .anno-legend-item {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .anno-swatch {
+      display: inline-block;
+      width: 14px;
+      height: 14px;
+      border-radius: 3px;
+    }
+    .anno-swatch.anno-strength { background: rgba(79,125,74,0.18); box-shadow: inset 0 -2px 0 #4f7d4a; }
+    .anno-swatch.anno-improvement { background: rgba(179,103,46,0.18); box-shadow: inset 0 -2px 0 #b3672e; }
+
+    .annotated-essay {
+      font-family: var(--serif);
+      font-size: 1rem;
+      line-height: 1.9;
+      color: var(--ink);
+    }
+    .annotated-essay p { margin-bottom: 14px; }
+    .annotated-essay p:last-child { margin-bottom: 0; }
+    .annotated-essay .anno-empty {
+      color: var(--ink-muted);
+      font-style: italic;
+      font-size: 0.9rem;
+    }
+
+    .anno-sentence {
+      position: relative;
+      cursor: help;
+      border-radius: 3px;
+      padding: 0 1px;
+    }
+    .anno-sentence.anno-strength { background: rgba(79,125,74,0.16); box-shadow: inset 0 -2px 0 #4f7d4a; }
+    .anno-sentence.anno-improvement { background: rgba(179,103,46,0.16); box-shadow: inset 0 -2px 0 #b3672e; }
+
+    .anno-sentence[data-tooltip]:hover::after {
+      content: attr(data-tooltip);
+      position: absolute;
+      left: 0;
+      bottom: 100%;
+      margin-bottom: 6px;
+      background: var(--ink);
+      color: #fdf8f0;
+      padding: 8px 12px;
+      border-radius: 6px;
+      font-family: var(--sans);
+      font-size: 0.78rem;
+      font-weight: 500;
+      line-height: 1.5;
+      white-space: normal;
+      width: 240px;
+      max-width: 70vw;
+      z-index: 20;
+      box-shadow: 0 6px 20px rgba(43,36,31,0.2);
+    }
+
     /* History score chart */
     #history-chart-wrap {
       display: none;
@@ -615,12 +682,22 @@
 
     <div id="actions-row">
       <button class="outline-btn" id="rubric-toggle-btn" type="button">Show Detailed Breakdown</button>
+      <button class="outline-btn" id="annotated-toggle-btn" type="button">Show Annotated Essay</button>
       <button class="outline-btn" id="download-pdf-btn" type="button">Download PDF Report</button>
     </div>
 
     <div class="rubric-panel" id="rubric-panel">
       <h3>Rubric Breakdown</h3>
       <div id="rubric-list"></div>
+    </div>
+
+    <div class="rubric-panel" id="annotated-panel">
+      <h3>Annotated Essay</h3>
+      <div class="anno-legend">
+        <span class="anno-legend-item"><span class="anno-swatch anno-strength"></span>Strength</span>
+        <span class="anno-legend-item"><span class="anno-swatch anno-improvement"></span>Area to improve</span>
+      </div>
+      <div class="annotated-essay" id="annotated-essay"></div>
     </div>
   </div>
 
@@ -778,6 +855,7 @@
       document.getElementById('rationale-wrap').style.display = 'none';
       document.getElementById('actions-row').style.display = 'none';
       document.getElementById('rubric-panel').style.display = 'none';
+      document.getElementById('annotated-panel').style.display = 'none';
 
       if (!text) {
         showError('Please enter an essay before grading.');
@@ -801,7 +879,7 @@
           return;
         }
 
-        showResult(data.score, data.rationale, data.rubric, text);
+        showResult(data.score, data.rationale, data.rubric, text, data.annotations, data.paragraphs, data.sentences);
       } catch (e) {
         showError('Could not reach the server. Make sure app.py is running.');
       } finally {
@@ -818,7 +896,7 @@
 
     let lastResult = null;
 
-    function showResult(score, rationale, rubric, essayText) {
+    function showResult(score, rationale, rubric, essayText, annotations, paragraphs, sentences) {
       const band = getBand(score);
       const pct = ((score - 1) / 5) * 100;
 
@@ -841,7 +919,7 @@
         document.getElementById('rationale-wrap').style.display = 'block';
       }
 
-      lastResult = { essay: essayText, score, band: band.label, rationale, rubric };
+      lastResult = { essay: essayText, score, band: band.label, rationale, rubric, annotations, paragraphs, sentences };
 
       const rubricToggleBtn = document.getElementById('rubric-toggle-btn');
       const rubricPanel = document.getElementById('rubric-panel');
@@ -853,6 +931,18 @@
         rubricToggleBtn.style.display = '';
       } else {
         rubricToggleBtn.style.display = 'none';
+      }
+
+      const annotatedToggleBtn = document.getElementById('annotated-toggle-btn');
+      const annotatedPanel = document.getElementById('annotated-panel');
+      annotatedPanel.style.display = 'none';
+      annotatedToggleBtn.textContent = 'Show Annotated Essay';
+
+      if (paragraphs && sentences && sentences.length && annotations && annotations.length) {
+        document.getElementById('annotated-essay').innerHTML = renderAnnotatedEssay(paragraphs, sentences, annotations);
+        annotatedToggleBtn.style.display = '';
+      } else {
+        annotatedToggleBtn.style.display = 'none';
       }
 
       document.getElementById('actions-row').style.display = 'flex';
@@ -883,12 +973,56 @@
       btn.textContent = isOpen ? 'Show Detailed Breakdown' : 'Hide Detailed Breakdown';
     });
 
+    function escapeAttr(str) {
+      return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/"/g, '&quot;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;');
+    }
+
+    // Renders an essay as highlighted, sentence-by-sentence spans with
+    // hover tooltips for each annotation from the AI feedback.
+    function renderAnnotatedEssay(paragraphs, sentences, annotations) {
+      if (!paragraphs || !sentences || !sentences.length) {
+        return '<p class="anno-empty">No annotated essay is available for this entry.</p>';
+      }
+
+      const annoMap = {};
+      (annotations || []).forEach(a => {
+        if (!annoMap[a.sentence]) annoMap[a.sentence] = [];
+        annoMap[a.sentence].push(a);
+      });
+
+      return paragraphs.map(paraIndices => {
+        const html = paraIndices.map(idx => {
+          const text = sentences[idx - 1];
+          const annos = annoMap[idx];
+          if (!annos || !annos.length) {
+            return escapeHtml(text);
+          }
+          const cls = annos.some(a => a.type === 'improvement') ? 'anno-improvement' : 'anno-strength';
+          const tooltip = annos.map(a => (a.category ? a.category + ': ' : '') + a.comment).join('  •  ');
+          return '<span class="anno-sentence ' + cls + '" data-tooltip="' + escapeAttr(tooltip) + '">' + escapeHtml(text) + '</span>';
+        }).join(' ');
+        return '<p>' + html + '</p>';
+      }).join('');
+    }
+
+    document.getElementById('annotated-toggle-btn').addEventListener('click', () => {
+      const panel = document.getElementById('annotated-panel');
+      const btn = document.getElementById('annotated-toggle-btn');
+      const isOpen = panel.style.display === 'block';
+      panel.style.display = isOpen ? 'none' : 'block';
+      btn.textContent = isOpen ? 'Show Annotated Essay' : 'Hide Annotated Essay';
+    });
+
     document.getElementById('download-pdf-btn').addEventListener('click', () => {
       if (!lastResult) return;
       downloadResultPdf(lastResult);
     });
 
-    function downloadResultPdf({ essay, score, band, rationale, rubric, date }) {
+    function downloadResultPdf({ essay, score, band, rationale, rubric, annotations, sentences, date }) {
       const generatedDate = date || new Date();
       const { jsPDF } = window.jspdf;
       const doc = new jsPDF({ unit: 'pt', format: 'letter' });
@@ -947,6 +1081,17 @@
       if (rationale) {
         addHeading('Feedback', 13);
         addParagraph(rationale, 11);
+      }
+
+      if (annotations && annotations.length && sentences && sentences.length) {
+        addHeading('Annotations', 13);
+        annotations.forEach(item => {
+          const label = item.type === 'improvement' ? 'Improve' : 'Strength';
+          const catLabel = item.category ? ' — ' + item.category : '';
+          const sentenceText = sentences[item.sentence - 1] || '';
+          addParagraph('[' + label + catLabel + '] "' + sentenceText + '" — ' + item.comment, 10.5);
+        });
+        y += 4;
       }
 
       const isExcerpt = essay.endsWith('…');
@@ -1037,6 +1182,19 @@
       const rubricPanel = (entry.rubric && entry.rubric.length)
         ? '<div class="rubric-panel-inline" id="rubric-panel-' + entry.id + '">' + renderRubricHtml(entry.rubric) + '</div>'
         : '';
+      const hasAnnotations = entry.annotations && entry.annotations.length && entry.sentences && entry.sentences.length;
+      const annotatedToggle = hasAnnotations
+        ? '<button class="outline-btn small" type="button" id="annotated-toggle-' + entry.id + '" onclick="toggleHistoryAnnotated(' + entry.id + ')">Show Annotated Essay</button>'
+        : '';
+      const annotatedPanel = hasAnnotations
+        ? '<div class="rubric-panel-inline" id="annotated-panel-' + entry.id + '">' +
+            '<div class="anno-legend">' +
+              '<span class="anno-legend-item"><span class="anno-swatch anno-strength"></span>Strength</span>' +
+              '<span class="anno-legend-item"><span class="anno-swatch anno-improvement"></span>Area to improve</span>' +
+            '</div>' +
+            '<div class="annotated-essay">' + renderAnnotatedEssay(entry.paragraphs, entry.sentences, entry.annotations) + '</div>' +
+          '</div>'
+        : '';
       return (
         '<div class="history-item">' +
           '<div class="history-item-top">' +
@@ -1047,9 +1205,11 @@
           '<p class="history-rationale">' + escapeHtml(entry.rationale) + '</p>' +
           '<div class="history-actions">' +
             rubricToggle +
+            annotatedToggle +
             '<button class="outline-btn small" type="button" onclick="downloadHistoryPdf(' + entry.id + ')">Download PDF</button>' +
           '</div>' +
           rubricPanel +
+          annotatedPanel +
         '</div>'
       );
     }
@@ -1062,6 +1222,14 @@
       btn.textContent = isOpen ? 'Show Detailed Breakdown' : 'Hide Detailed Breakdown';
     }
 
+    function toggleHistoryAnnotated(id) {
+      const panel = document.getElementById('annotated-panel-' + id);
+      const btn = document.getElementById('annotated-toggle-' + id);
+      const isOpen = panel.style.display === 'block';
+      panel.style.display = isOpen ? 'none' : 'block';
+      btn.textContent = isOpen ? 'Show Annotated Essay' : 'Hide Annotated Essay';
+    }
+
     function downloadHistoryPdf(id) {
       const entry = historyEntries.find(e => e.id === id);
       if (!entry) return;
@@ -1071,6 +1239,8 @@
         band: getBand(entry.score).label,
         rationale: entry.rationale,
         rubric: entry.rubric,
+        annotations: entry.annotations,
+        sentences: entry.sentences,
         date: new Date(entry.created_at),
       });
     }

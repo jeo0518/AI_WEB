@@ -56,6 +56,7 @@ class SavedFeedback(db.Model):
     raw_score = db.Column(db.Float, nullable=False)
     rationale = db.Column(db.Text, nullable=False)
     rubric_json = db.Column(db.Text, nullable=True)
+    annotations_json = db.Column(db.Text, nullable=True)
     created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc), index=True)
 
 
@@ -66,11 +67,12 @@ def load_user(user_id):
 
 with app.app_context():
     db.create_all()
-    # Lightweight migration for the rubric_json column added after the
+    # Lightweight migration for columns added after the
     # original table was created in production.
     with db.engine.connect() as conn:
         conn.execute(db.text("ALTER TABLE saved_feedback ADD COLUMN IF NOT EXISTS rubric_json TEXT"))
         conn.execute(db.text("ALTER TABLE saved_feedback ADD COLUMN IF NOT EXISTS essay_text TEXT"))
+        conn.execute(db.text("ALTER TABLE saved_feedback ADD COLUMN IF NOT EXISTS annotations_json TEXT"))
         conn.commit()
 
 HF_REPO = os.environ.get("HF_MODEL_REPO")
@@ -114,22 +116,65 @@ RUBRIC_CATEGORIES = [
 ]
 
 
-def generate_feedback(essay: str, score: float) -> dict:
+SENTENCE_RE = re.compile(r'[^.!?]*[.!?]+(?:["\')\]]+)?|[^.!?]+')
+
+
+def segment_essay(essay: str):
+    """Split an essay into paragraphs of sentences for annotation rendering.
+
+    Returns (paragraphs, sentences): `sentences` is a flat list of sentence
+    strings, and `paragraphs` is a list of lists of 1-based indices into
+    `sentences`, grouping sentences by their original paragraph.
+    """
+    raw_paragraphs = [p.strip() for p in re.split(r"\n+", essay) if p.strip()]
+    if not raw_paragraphs:
+        raw_paragraphs = [essay.strip()]
+
+    paragraphs = []
+    sentences = []
+    for para in raw_paragraphs:
+        para_sentences = [s.strip() for s in SENTENCE_RE.findall(para) if s.strip()]
+        if not para_sentences:
+            continue
+        indices = []
+        for s in para_sentences:
+            sentences.append(s)
+            indices.append(len(sentences))
+        paragraphs.append(indices)
+
+    if not paragraphs:
+        paragraphs = [[]]
+
+    return paragraphs, sentences
+
+
+def generate_feedback(essay: str, score: float, sentences: list) -> dict:
     band = score_label(score)
     categories = ", ".join(RUBRIC_CATEGORIES)
+    numbered_essay = "\n".join(f"[{i}] {s}" for i, s in enumerate(sentences, start=1))
     prompt = (
         f"An AI essay grading model scored the following essay {score}/6 ({band}).\n\n"
-        f"Essay:\n{essay}\n\n"
-        "Respond with a JSON object containing exactly two keys:\n\n"
+        "The essay below has been split into numbered sentences for reference:\n\n"
+        f"{numbered_essay}\n\n"
+        "Respond with a JSON object containing exactly three keys:\n\n"
         '"rationale": a concise grading rationale in exactly 3 short paragraphs '
         "(1. overall assessment and score justification, 2. specific strengths "
         "with reference to the essay, 3. specific areas for improvement). "
-        "Be direct and constructive. Do not use headers or bullet points.\n\n"
+        "Be direct and constructive. Write in flowing prose without mentioning "
+        "sentence numbers or brackets. Do not use headers or bullet points.\n\n"
         '"rubric": an array with exactly one object for each of these categories, '
         f"in this order: {categories}. Each object must have keys "
         '"category" (the category name), "score" (an integer from 1 to 6 '
         "rating the essay on that category), and \"feedback\" (one short "
-        "sentence explaining the score for that category)."
+        "sentence explaining the score for that category).\n\n"
+        '"annotations": an array of 4 to 8 objects that call out specific '
+        "strengths or issues in individual sentences from the numbered list "
+        'above. Each object must have keys "sentence" (the integer sentence '
+        'number it refers to), "type" (either "strength" or "improvement"), '
+        f'"category" (one of: {categories}), and "comment" (one short, specific '
+        "sentence, no more than ~20 words, explaining the strength or how to "
+        "improve that sentence). Spread the annotations across different parts "
+        "of the essay and include a mix of strengths and improvements."
     )
     response = openai_client.chat.completions.create(
         model="gpt-4o-mini",
@@ -137,7 +182,7 @@ def generate_feedback(essay: str, score: float) -> dict:
             {"role": "system", "content": "You are an expert essay grader providing clear, specific feedback. Always respond with valid JSON."},
             {"role": "user", "content": prompt},
         ],
-        max_tokens=900,
+        max_tokens=1300,
         temperature=0.4,
         response_format={"type": "json_object"},
     )
@@ -145,6 +190,10 @@ def generate_feedback(essay: str, score: float) -> dict:
 
     try:
         parsed = json.loads(content)
+    except json.JSONDecodeError:
+        parsed = {}
+
+    try:
         rationale = parsed["rationale"].strip()
         rubric = []
         for category, item in zip(RUBRIC_CATEGORIES, parsed.get("rubric", [])):
@@ -155,14 +204,37 @@ def generate_feedback(essay: str, score: float) -> dict:
             })
         if len(rubric) != len(RUBRIC_CATEGORIES):
             raise ValueError("Incomplete rubric breakdown")
-    except (json.JSONDecodeError, KeyError, ValueError, TypeError):
+    except (KeyError, ValueError, TypeError):
         rationale = content
         rubric = [
             {"category": category, "score": round(score), "feedback": ""}
             for category in RUBRIC_CATEGORIES
         ]
 
-    return {"rationale": rationale, "rubric": rubric}
+    annotations = []
+    for item in parsed.get("annotations", []) if isinstance(parsed, dict) else []:
+        if not isinstance(item, dict):
+            continue
+        try:
+            idx = int(item.get("sentence"))
+        except (TypeError, ValueError):
+            continue
+        if not (1 <= idx <= len(sentences)):
+            continue
+        ann_type = item.get("type")
+        if ann_type not in ("strength", "improvement"):
+            continue
+        comment = str(item.get("comment", "")).strip()
+        if not comment:
+            continue
+        annotations.append({
+            "sentence": idx,
+            "type": ann_type,
+            "category": str(item.get("category", "")).strip(),
+            "comment": comment,
+        })
+
+    return {"rationale": rationale, "rubric": rubric, "annotations": annotations}
 
 
 def extract_text_from_upload(file_storage):
@@ -258,8 +330,13 @@ def history():
         .order_by(SavedFeedback.created_at.desc())
         .all()
     )
-    return jsonify([
-        {
+    result = []
+    for entry in entries:
+        if entry.essay_text:
+            paragraphs, sentences = segment_essay(entry.essay_text)
+        else:
+            paragraphs, sentences = [], []
+        result.append({
             "id": entry.id,
             "essay_excerpt": entry.essay_excerpt,
             "essay_text": entry.essay_text,
@@ -267,10 +344,12 @@ def history():
             "raw": entry.raw_score,
             "rationale": entry.rationale,
             "rubric": json.loads(entry.rubric_json) if entry.rubric_json else None,
+            "annotations": json.loads(entry.annotations_json) if entry.annotations_json else None,
+            "paragraphs": paragraphs,
+            "sentences": sentences,
             "created_at": entry.created_at.isoformat(),
-        }
-        for entry in entries
-    ])
+        })
+    return jsonify(result)
 
 
 @app.route("/extract", methods=["POST"])
@@ -323,9 +402,11 @@ def grade():
     score = max(1.0, min(6.0, logits))
     score_rounded = round(score)
 
-    feedback = generate_feedback(essay, score_rounded)
+    paragraphs, sentences = segment_essay(essay)
+    feedback = generate_feedback(essay, score_rounded, sentences)
     rationale = feedback["rationale"]
     rubric = feedback["rubric"]
+    annotations = feedback["annotations"]
     raw_score = round(score, 3)
 
     if current_user.is_authenticated:
@@ -338,10 +419,19 @@ def grade():
             raw_score=raw_score,
             rationale=rationale,
             rubric_json=json.dumps(rubric),
+            annotations_json=json.dumps(annotations),
         ))
         db.session.commit()
 
-    return jsonify({"score": score_rounded, "raw": raw_score, "rationale": rationale, "rubric": rubric})
+    return jsonify({
+        "score": score_rounded,
+        "raw": raw_score,
+        "rationale": rationale,
+        "rubric": rubric,
+        "annotations": annotations,
+        "paragraphs": paragraphs,
+        "sentences": sentences,
+    })
 
 
 if __name__ == "__main__":
